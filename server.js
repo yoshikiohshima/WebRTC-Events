@@ -3,7 +3,7 @@
 var os = require('os');
 var fs = require('fs');
 var nodeStatic = require('node-static');
-var fileServer = new(nodeStatic.Server)();
+var fileServer = new(nodeStatic.Server)('webroot');
 var socketIO = require('socket.io');
 
 if (process.argv.length > 2) {

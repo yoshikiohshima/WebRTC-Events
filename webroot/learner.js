@@ -30,17 +30,11 @@ window.onload = function() {
         files: ['squeakjs.image', 'squeakjs.changes'],
         fullscreen: fullscreen,
         swapButtons: true,
-        header: sqHeader,
-        footer: sqFooter,
+        header: null,
+        footer: null,
         spinner: sqSpinner,
         swapCheckbox: sqSwapButtons,
         fullscreenCheckbox: sqFullscreen,
         tutorMode: 'learner',
     });
 };
-
-if (addToHomescreen.isStandalone)
-    fullscreen = true;
-else addToHomescreen({
-    appID: 'squeakjs.demo.add2home',
-});

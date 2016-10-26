@@ -24,22 +24,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
-<link rel="icon" type="image/png" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png" sizes="152x152">
-<meta name="viewport" content="minimum-scale=1,maximum-scale=1,width=device-width">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="msapplication-TileImage" content="icon.png">
-
-<link rel="stylesheet" href="../lib/gh-fork-ribbon.css">
-<link rel="stylesheet" href="../lib/addtohomescreen.css">
-<script src="../lib/addtohomescreen.js"></script>
-
 <link rel="stylesheet" href="teacher.css">
-<script src="../squeak.js"></script>
-<!-- <script src="teacher.js"></script> -->
-<script src="SimplePlugin.js"></script>
+<script src="SqueakJS/squeak.js"></script>
+<script src="SqueakJS/demo/SimplePlugin.js"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="../rtc/lib/adapter.js"></script>
+<script src="js/lib/adapter.js"></script>
 
 </head>
 <body>
@@ -48,23 +37,8 @@ THE SOFTWARE.
         <label title="Swap middle and right mouse buttons"><input id="sqSwapButtons" type="checkbox">swap buttons</label>
         <label title="Make Squeak as large as possible"><input id="sqFullscreen" type="checkbox">full screen</label>
         <button id="resetButton">Reset Server</button>
-        <div class="github-fork-ribbon-wrapper right">
-            <div class="github-fork-ribbon">
-                <a href="https://github.com/bertfreudenberg/SqueakJS" target="_blank">Fork me on GitHub</a>
-            </div>
-        </div>
     </div>
     <video id="videoCanvas" autoplay></video>
-    <div id="sqFooter">
-        <p><a href="../" target="_blank">SqueakJS</a> is a Virtual Machine
-        for the Squeak dialect of Smalltalk, written in pure JavaScript by Bert Freudenberg.
-        Above is a stripped-down version of Squeak 2.2, which was released in 1998.
-        Modern Squeak versions are much more advanced, but more demanding, too. You can try
-        them on the SqueakJS <a href="../run">launcher page</a>.
-        Also, you may want to try the <a href= "http://lively-web.org/users/bert/squeak.html">Lively SqueakJS Debugger</a>.
-        </p>
-    </div>
-   <!--  <canvas id="aCanvas"></canvas> -->
     <div id="sqSpinner"><div></div></div>
     <audio id="audio" controls autoplay></audio>
 <script>
@@ -80,6 +54,6 @@ THE SOFTWARE.
       socket.emit('reset');
     }});
 </script>
-<script src="../rtc/main.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
