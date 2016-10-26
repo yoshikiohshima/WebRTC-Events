@@ -13,14 +13,70 @@
 
 var configuration = null;
 
-// var roomURL = document.getElementById('url');
-var teacher = document.querySelector('teacher');
-var learner = document.querySelector('learner');
+var videoCanvas = document.getElementById('videoCanvas');
+var audio = document.getElementById('audio');
 var trail = document.getElementById('events');
+var teacherCursor = document.getElementById('cursor');
+var sqCanvas = document.getElementById('sqCanvas');
+var sqContextW = 800;
+var sqContextH = 600;
+if (sqCanvas) {
+  var sqContext = sqCanvas.getContext('2d');
+}
+
+var remoteStreams = [];
+
+var localStream;
+var clonedStream;
+var mediaRecorder;
+
+var audioStream;
+
+var isLearner = !isTeacher;
+console.log(isLearner);
+var learnerStartTime = Date.now();
+
+var offerOptions = {
+  offerToReceiveAudio: 1,
+  offerToReceiveVideo: 1
+};
+
+function getRoleFromURL(url) {
+  var queryString = url ? url.split('?')[1] : window.location.search.slice(1);
+  var obj = {};
+  if (queryString) {
+    // stuff after # is not part of query string, so get rid of it
+    queryString = queryString.split('#')[0];
+
+    // split our query string into its component parts
+    var arr = queryString.split('&');
+
+    for (var i = 0; i < arr.length; i++) {
+      // separate the keys and the values
+      var a = arr[i].split('=');
+
+      // in case params look like: list[]=thing1&list[]=thing2
+      var paramNum = undefined;
+      var paramName = a[0].replace(/\[\d*\]/, function(v) {
+        paramNum = v.slice(1,-1);
+        return '';
+      });
+
+      // set parameter value (use 'true' if empty)
+      var paramValue = typeof(a[1])==='undefined' ? true : a[1];
+
+      // (optional) keep case consistent
+      paramName = paramName.toLowerCase();
+      paramValue = paramValue.toLowerCase();
+      obj[paramName] = paramValue;
+    }
+  }
+  return obj;
+}
+
+//var isTeacher = !!getRoleFromURL()['teacher'];
 
 // Create a random room if not already present in the URL.
-var isInitiator;
-var isTeacher;
 var room = window.location.hash.substring(1);
 if (!room) {
   room = window.location.hash = randomToken();
@@ -41,14 +97,11 @@ socket.on('ipaddr', function(ipaddr) {
 
 socket.on('created', function(room, clientId) {
   console.log('Created room', room, '- my client ID is', clientId);
-  isTeacher = true;
   //grabWebCamVideo();
 });
 
-socket.on('joined', function(room, clientId) {
-  console.log('This peer has joined room', room, 'with client ID', clientId);
-  isTeacher = false;
-  createPeerConnection(isTeacher, configuration);
+socket.on('joined', function(clientId) {
+  console.log('This peer has joined with client ID', clientId);
 //  grabWebCamVideo();
 });
 
@@ -58,9 +111,9 @@ socket.on('full', function(room) {
   window.location.reload();
 });
 
-socket.on('ready', function() {
-  console.log('Socket is ready');
-  createPeerConnection(isTeacher, configuration);
+socket.on('ready', function(room) {
+  console.log('Socket is ready ' + room);
+  createPeerConnection(isLearner, configuration);
 });
 
 socket.on('log', function(array) {
@@ -72,8 +125,13 @@ socket.on('message', function(message) {
   signalingMessageCallback(message);
 });
 
-// Join a room
-socket.emit('create or join', room);
+if (isLearner) {
+  startStreamingCanvas();
+  startAudio();
+  socket.emit('newLearner', room);
+} else {
+  socket.emit('newTeacher', room);
+}
 
 if (location.hostname.match(/localhost|127\.0\.0/)) {
   socket.emit('ipaddr');
@@ -98,35 +156,6 @@ function sendMessage(message) {
 //     url = location.protocol + '//' + ipaddr + ':2013/#' + room;
 //   }
 //   roomURL.innerHTML = url;
-// }
-
-/****************************************************************************
-* User media (webcam)
-****************************************************************************/
-
-// function grabWebCamVideo() {
-//   console.log('Getting user media (video) ...');
-//   navigator.mediaDevices.getUserMedia({
-//     audio: false,
-//     video: true
-//   })
-//   .then(gotStream)
-//   .catch(function(e) {
-//     alert('getUserMedia() error: ' + e.name);
-//   });
-// }
-
-// function gotStream(stream) {
-//   var streamURL = window.URL.createObjectURL(stream);
-//   console.log('getUserMedia video stream URL:', streamURL);
-//   window.stream = stream; // stream available to console
-//   video.src = streamURL;
-//   video.onloadedmetadata = function() {
-//     photo.width = photoContextW = video.videoWidth;
-//     photo.height = photoContextH = video.videoHeight;
-//     console.log('gotStream with with and height:', photoContextW, photoContextH);
-//   };
-//   show(snapBtn);
 // }
 
 /****************************************************************************
@@ -163,35 +192,49 @@ function createPeerConnection(isInitiator, config) {
               config);
   peerConn = new RTCPeerConnection(config);
 
-// send any ice candidates to the other peer
-peerConn.onicecandidate = function(event) {
-  console.log('icecandidate event:', event);
-  if (event.candidate) {
-    sendMessage({
-      type: 'candidate',
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate
-    });
-  } else {
-    console.log('End of candidates.');
-  }
-};
-
-if (isInitiator) {
-  console.log('Creating Data Channel');
-  dataChannel = peerConn.createDataChannel('photos');
-  onDataChannelCreated(dataChannel);
-
-  console.log('Creating an offer');
-  peerConn.createOffer(onLocalSessionCreated, logError);
-} else {
-  peerConn.ondatachannel = function(event) {
-    console.log('ondatachannel:', event.channel);
-    dataChannel = event.channel;
-    onDataChannelCreated(dataChannel);
+  // send any ice candidates to the other peer
+  peerConn.onicecandidate = function(event) {
+    console.log('icecandidate event:', event);
+    if (event.candidate) {
+      sendMessage({
+        type: 'candidate',
+        label: event.candidate.sdpMLineIndex,
+        id: event.candidate.sdpMid,
+        candidate: event.candidate.candidate
+      });
+    } else {
+      console.log('End of candidates.');
+    }
   };
-}
+
+  if (isInitiator) {
+    setupRemoteStream();
+    console.log('Creating Data Channel');
+    dataChannel = peerConn.createDataChannel('squeak');
+    onDataChannelCreated(dataChannel);
+
+    console.log('Creating an offer');
+    peerConn.createOffer(onLocalSessionCreated, logError, offerOptions);
+
+  } else {
+    peerConn.ondatachannel = function(event) {
+      console.log('ondatachannel:', event.channel);
+      dataChannel = event.channel;
+      onDataChannelCreated(dataChannel);
+    };
+
+    peerConn.onaddstream = function(event) {
+      console.log('Remote stream added.', event);
+      remoteStreams.push(event.stream);
+      var tracks = event.stream.getTracks();
+      if (tracks.length > 0 && tracks[0].kind == 'video') {
+        videoCanvas.src = window.URL.createObjectURL(event.stream);
+      } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
+        audio.srcObject = event.stream;
+       //window.URL.createObjectURL(event.stream);
+      }
+    };
+  }
 }
 
 function onLocalSessionCreated(desc) {
@@ -213,58 +256,116 @@ function onDataChannelCreated(channel) {
   receiveDataFirefoxFactory() : receiveDataChromeFactory();
 }
 
+var totalSize = 0;
+var chunks = [];
+
+function startStreamingCanvas(canvas) {
+  if (!canvas) {
+    canvas = sqCanvas;
+  }
+  localStream = canvas.captureStream(30);
+  clonedStream = localStream.clone();
+  mediaRecorder = new MediaRecorder(clonedStream);
+  mediaRecorder.start();
+  mediaRecorder.ondataavailable = function handleDataAvailable(event) {
+    if (event.data.size > 0) {
+      chunks.push(event.data);
+      totalSize += event.data.size;
+      //console.log(event.data.size);
+    } else {
+      // ...
+    }
+  };
+};
+
+function setupRemoteStream() {
+  if (peerConn) {
+    if (localStream) {
+      peerConn.addStream(localStream);
+    }
+    if (audioStream) {
+      peerConn.addStream(audioStream);
+    }
+  }
+};
+
+function getGetUserMedia() {
+  // Note: Opera builds are unprefixed.
+  return navigator.getUserMedia || navigator.webkitGetUserMedia ||
+            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+}
+
+function startAudio() {
+  var f = getGetUserMedia();
+  console.log('f', f);
+  if (f) {
+    f({audio: true, video: false},
+      function(stream) {
+        audioStream = stream;
+      },
+      function(err) {console.log(err)});
+  }
+};
+
+function saveChunks() {
+  var superBuffer = new Blob(chunks, {type: 'videow/webm'});
+  var url = URL.createObjectURL(superBuffer);
+  var a = document.createElement('a');
+  document.body.appendChild(a);
+  a.style = 'display: none';
+  a.href = url;
+  a.download = 'test.webm';
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
+
 function receiveDataChromeFactory() {
-  var buf, count;
+  var buf, count, type;
 
   return function onmessage(event) {
-//    if (typeof event.data === 'string') {
-//      buf = window.buf = new Uint8ClampedArray(parseInt(event.data));
-//      count = 0;
-//      console.log('Expecting a total of ' + buf.byteLength + ' bytes');
-//      return;
-//    }
+    if (typeof event.data === 'string') {
+      var payload = parseInt(event.data);
+      type = payload >> 24;
+      var len = payload & 0xFFFFFF;
+      if (type == dataTypes.event) {
+        //console.log('expecting an event.');
+        //renderEvent(buf);
+      } else if (type == dataTypes.image) {
+        buf = window.buf = new Uint8ClampedArray(len);
+        count = 0;
+        console.log('Expecting a total of ' + buf.byteLength + ' bytes');
+      } else {
+	console.log('unknown type');
+      }
+      return;
+    }
 
-    var buf = new Uint32Array(event.data);
-    console.log('Done. Rendering event.');
-    renderEvent(buf);
+    if (type == dataTypes.event) {
+      // assuming this 12 bytes data won't get split during the transimission
+      buf = new Uint32Array(event.data);
+      renderEvent(buf);
+      buf = null;
+      type = null;
+    } else if (type == dataTypes.image) {
+      var data = new Uint8ClampedArray(event.data);
+      buf.set(data, count);
+      count += data.byteLength;
+      console.log('count: ' + count);
+
+      if (count === buf.byteLength) {
+        // we're done: all data chunks have been received
+        console.log('Done. Rendering image.');
+        renderImage(buf);
+      }
+    }
   }
 }
 
 function receiveDataFirefoxFactory() {
-  var count, total, parts;
-
   return function onmessage(event) {
-    if (typeof event.data === 'string') {
-      total = parseInt(event.data);
-      parts = [];
-      count = 0;
-      console.log('Expecting a total of ' + total + ' bytes');
-      return;
-    }
-
-    parts.push(event.data);
-    count += event.data.size;
-    console.log('Got ' + event.data.size + ' byte(s), ' + (total - count) +
-                ' to go.');
-
-    if (count === total) {
-      console.log('Assembling payload');
-      var buf = new Uint8ClampedArray(total);
-      var compose = function(i, pos) {
-        var reader = new FileReader();
-        reader.onload = function() {
-          buf.set(new Uint8ClampedArray(this.result), pos);
-          if (i + 1 === parts.length) {
-            console.log('Done. Rendering photo.');
-            renderPhoto(buf);
-          } else {
-            compose(i + 1, pos + this.result.byteLength);
-          }
-        };
-        reader.readAsArrayBuffer(parts[i]);
-      };
-      compose(0, 0);
-    }
+    var buf = new Uint32Array(event.data);
+    console.log('Done. Rendering event.');
+    renderEvent(buf);
   };
 }
 
@@ -273,30 +374,58 @@ function receiveDataFirefoxFactory() {
 * Aux functions, mostly UI-related
 ****************************************************************************/
 
+var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove:4};
+var dataTypes = {image: 0, event: 1};
+
+function sendImage() {
+  // Split data channel message in chunks of this byte length.
+  var CHUNK_LEN = 64000;
+  console.log('width and height ', sqContextW, sqContextH);
+  var img = sqContext.getImageData(0, 0, sqContextW, sqContextH),
+  len = img.data.byteLength,
+  n = len / CHUNK_LEN | 0;
+
+  console.log('Sending a total of ' + len + ' byte(s) of type ');
+  dataChannel.send(dataTypes.image << 24 | len);
+
+  // split the photo and send in chunks of about 64KB
+  for (var i = 0; i < n; i++) {
+    var start = i * CHUNK_LEN,
+    end = (i + 1) * CHUNK_LEN;
+    dataChannel.send(img.data.subarray(start, end));
+  }
+
+  // send the reminder, if any
+  if (len % CHUNK_LEN) {
+    console.log('last ' + len % CHUNK_LEN + ' byte(s)');
+    dataChannel.send(img.data.subarray(n * CHUNK_LEN));
+  }
+}
+
 function sendEvent(evt) {
-  var buf = encodeEvent(evt);
-  console.log('Sending an encoded event of:' + evt);
   if (dataChannel) {
+    var buf = encodeEvent(evt);
+    dataChannel.send(dataTypes.event << 24 | buf.byteLength);
+
     dataChannel.send(buf);
   }
 }
 
 function renderEvent(buf) {
-  // trail is the element holding the incoming images
-  trail.innerHTML = trail.innerHTML + buf[0].toString() + ' ' + buf[1].toString() + ' ' + buf[2].toString() + '. ';
-
+  var left = 0, top = 0;
+  if (sqCanvas) {
+    left = sqCanvas.offsetLeft;
+    top = sqCanvas.offsetTop;
+  }
+  teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
+  teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
 }
 
-function show() {
-  Array.prototype.forEach.call(arguments, function(elem) {
-    elem.style.display = null;
-  });
-}
-
-function hide() {
-  Array.prototype.forEach.call(arguments, function(elem) {
-    elem.style.display = 'none';
-  });
+function renderImage(data) {
+  var context = videoCanvas.getContext('2d');
+  var img = context.createImageData(sqContextW, sqContextH);
+  img.data.set(data);
+  context.putImageData(img, 0, 0);
 }
 
 function randomToken() {
@@ -307,18 +436,21 @@ function logError(err) {
   console.log(err.toString(), err);
 }
 
-var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove:4};
 
 function encodeEvent(evt) {
+   var left = 0, top = 0;
+   if (videoCanvas) {
+     left = videoCanvas.offsetLeft;
+     top = videoCanvas.offsetTop;
+   }
    var v = new Uint32Array(3);
    var type = evt.type;
-   console.log('encode: ', evt.type);
    v[0] = eventTypes[type];
    if (v[0] <= 1) {
      v[1] = evt.keyCode;
    } else {
-     v[1] = evt.mousex;
-     v[2] = evt.mousey;
+     v[1] = evt.clientX - left;
+     v[2] = evt.clientY - top;
    }
    return v.buffer;
 }

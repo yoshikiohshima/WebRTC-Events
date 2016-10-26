@@ -1,0 +1,3 @@
+[submodule "SqueakJS"]
+	path = SqueakJS
+	url = https://github.com/bertfreudenberg/SqueakJS.git
