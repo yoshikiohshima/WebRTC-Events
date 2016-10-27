@@ -2,20 +2,14 @@ body {
     background-color: #eae6d1;
     font-family: sans-serif;
 }
-canvas {
+canvas#sqCanvas {
     position: fixed;
     background: #000;
     cursor: default;
-    width: 800px;
-    height: 600px;
+    width: 1200px;
+    height: 900px;
 }
 
-canvas.pixelated {
-    image-rendering: -moz-crisp-edges;
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: pixelated;
-    -ms-interpolation-mode: nearest-neighbor;
-}
 label {
     padding-right: 3em;
 }

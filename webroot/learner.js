@@ -25,6 +25,25 @@ var fullscreen = navigator.standalone ||
     window.matchMedia('(max-device-width: 800px) and (max-device-height: 800px)').matches;
 
 window.onload = function() {
+    SqueakJS.runSqueak('etoys.image', sqCanvas, {
+        appName: "Etoys",
+        files: ['etoys.image'],
+        fixedWidth: 1200,
+        fixedHeight: 900,
+        fullscreen: fullscreen,
+        header: null,
+        footer: null,
+        spinner: sqSpinner,
+        root: "/Etoys",
+        templates: {
+            "ExampleEtoys": "http://freudenbergs.de/bert/squeakjs/Etoys/ExampleEtoys",
+            "fonts":        "http://freudenbergs.de/bert/squeakjs/Etoys/fonts",
+            "locale":       "http://freudenbergs.de/bert/squeakjs/Etoys/locale",
+        },
+    });
+};
+
+/* window.onload = function() {
     SqueakJS.runSqueak('squeakjs.image', sqCanvas, {
         appName: "SqueakJS",
         files: ['squeakjs.image', 'squeakjs.changes'],
@@ -38,3 +57,4 @@ window.onload = function() {
         tutorMode: 'learner',
     });
 };
+*/
