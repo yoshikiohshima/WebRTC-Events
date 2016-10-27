@@ -70,6 +70,7 @@ function maybeStart() {
     }
 }
 
+
 var io = socketIO.listen(app);
 io.sockets.on('connection', function(socket) {
 
@@ -118,6 +119,12 @@ io.sockets.on('connection', function(socket) {
   socket.on('disconnect', function(){
     console.log('disconnected');
   });
+
+  function establishConnection(room) {
+  // when both learner and teacher are here.
+  // emit 'ready' (again) to both and have them do the offer/answer swquence with their audio settings.
+    io.sockets.in(room).emit('ready', room);
+  };
 
   socket.on('reset', function(){
     console.log('reset queues');

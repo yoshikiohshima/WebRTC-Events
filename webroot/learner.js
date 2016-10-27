@@ -21,25 +21,18 @@
  */
 
 
-var fullscreen = navigator.standalone ||
-    window.matchMedia('(max-device-width: 800px) and (max-device-height: 800px)').matches;
-
 window.onload = function() {
-    var origin = window.location.origin;
     SqueakJS.runSqueak('etoys.image', sqCanvas, {
         appName: "Etoys",
-        files: ['etoys.image'],
         fixedWidth: 1200,
         fixedHeight: 900,
-        fullscreen: fullscreen,
-        header: null,
-        footer: null,
+        fullscreen: true,
         spinner: sqSpinner,
         root: "/Etoys",
         templates: {
-            "ExampleEtoys": origin + "/etoys/ExampleEtoys",
-            "fonts":        origin + "/etoys/fonts",
-            "locale":       origin + "/etoys/locale",
+            "ExampleEtoys": "etoys/ExampleEtoys",
+            "fonts":        "etoys/fonts",
+            "locale":       "etoys/locale",
         },
     });
 };

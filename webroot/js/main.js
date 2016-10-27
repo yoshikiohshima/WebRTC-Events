@@ -18,8 +18,8 @@ var audio = document.getElementById('audio');
 var trail = document.getElementById('events');
 var teacherCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById('sqCanvas');
-var sqContextW = 800;
-var sqContextH = 600;
+var sqContextW = 1200;
+var sqContextH = 900;
 if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
 }
@@ -92,17 +92,14 @@ var socket = io.connect();
 
 socket.on('ipaddr', function(ipaddr) {
   console.log('Server IP address is: ' + ipaddr);
-  // updateRoomURL(ipaddr);
 });
 
 socket.on('created', function(room, clientId) {
   console.log('Created room', room, '- my client ID is', clientId);
-  //grabWebCamVideo();
 });
 
 socket.on('joined', function(clientId) {
   console.log('This peer has joined with client ID', clientId);
-//  grabWebCamVideo();
 });
 
 socket.on('full', function(room) {
