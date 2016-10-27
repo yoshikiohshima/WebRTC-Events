@@ -25,6 +25,7 @@ var fullscreen = navigator.standalone ||
     window.matchMedia('(max-device-width: 800px) and (max-device-height: 800px)').matches;
 
 window.onload = function() {
+    var origin = window.location.origin;
     SqueakJS.runSqueak('etoys.image', sqCanvas, {
         appName: "Etoys",
         files: ['etoys.image'],
@@ -36,25 +37,9 @@ window.onload = function() {
         spinner: sqSpinner,
         root: "/Etoys",
         templates: {
-            "ExampleEtoys": "http://freudenbergs.de/bert/squeakjs/Etoys/ExampleEtoys",
-            "fonts":        "http://freudenbergs.de/bert/squeakjs/Etoys/fonts",
-            "locale":       "http://freudenbergs.de/bert/squeakjs/Etoys/locale",
+            "ExampleEtoys": origin + "/etoys/ExampleEtoys",
+            "fonts":        origin + "/etoys/fonts",
+            "locale":       origin + "/etoys/locale",
         },
     });
 };
-
-/* window.onload = function() {
-    SqueakJS.runSqueak('squeakjs.image', sqCanvas, {
-        appName: "SqueakJS",
-        files: ['squeakjs.image', 'squeakjs.changes'],
-        fullscreen: fullscreen,
-        swapButtons: true,
-        header: null,
-        footer: null,
-        spinner: sqSpinner,
-        swapCheckbox: sqSwapButtons,
-        fullscreenCheckbox: sqFullscreen,
-        tutorMode: 'learner',
-    });
-};
-*/

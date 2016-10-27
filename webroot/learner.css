@@ -6,8 +6,6 @@ canvas#sqCanvas {
     position: fixed;
     background: #000;
     cursor: default;
-    width: 1200px;
-    height: 900px;
 }
 
 label {
