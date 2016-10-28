@@ -65,7 +65,6 @@ function maybeStart() {
       var room = teacher[1];
       socket.join(room);
       learner[0].join(room);
-      socket.emit('joined', room, socket.id);
       io.sockets.in(room).emit('ready', room);
     }
 }
@@ -96,7 +95,6 @@ io.sockets.on('connection', function(socket) {
 
   socket.on('newLearner', function () {
     log('a new learner joined: ');
-    socket.emit('joined', socket.id);
     learnersQueue.push([socket]);
     maybeStart();
   });
@@ -112,19 +110,18 @@ io.sockets.on('connection', function(socket) {
     }
   });
 
-  socket.on('bye', function(){
+  socket.on('bye', function() {
     console.log('received bye');
   });
 
-  socket.on('disconnect', function(){
+  socket.on('disconnect', function() {
     console.log('disconnected');
   });
 
-  function establishConnection(room) {
-  // when both learner and teacher are here.
-  // emit 'ready' (again) to both and have them do the offer/answer swquence with their audio settings.
-    io.sockets.in(room).emit('ready', room);
-  };
+  socket.on('renegotiate', function(room) {
+    console.log('renegotiation in room: ' + room);
+    io.sockets.in(room).emit('readyAgain', room);
+  });
 
   socket.on('reset', function(){
     console.log('reset queues');

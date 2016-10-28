@@ -24,16 +24,13 @@ if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
 }
 
-var remoteStreams = [];
-
-var localStream;
+var canvasStream;
 var clonedStream;
 var mediaRecorder;
 
 var audioStream;
 
 var isLearner = !isTeacher;
-console.log(isLearner);
 var learnerStartTime = Date.now();
 
 var offerOptions = {
@@ -77,11 +74,13 @@ function getRoleFromURL(url) {
 //var isTeacher = !!getRoleFromURL()['teacher'];
 
 // Create a random room if not already present in the URL.
-var room = window.location.hash.substring(1);
-if (!room) {
-  room = window.location.hash = randomToken();
+var room;
+if (isTeacher) {
+  room = window.location.hash.substring(1);
+  if (!room) {
+    room = window.location.hash = randomToken();
+  }
 }
-
 
 /****************************************************************************
 * Signaling server
@@ -94,23 +93,27 @@ socket.on('ipaddr', function(ipaddr) {
   console.log('Server IP address is: ' + ipaddr);
 });
 
-socket.on('created', function(room, clientId) {
-  console.log('Created room', room, '- my client ID is', clientId);
+socket.on('created', function(rm, clientId) {
+  console.log('Created room', rm, '- my client ID is', clientId);
 });
 
-socket.on('joined', function(clientId) {
-  console.log('This peer has joined with client ID', clientId);
-});
-
-socket.on('full', function(room) {
-  alert('Room ' + room + ' is full. We will create a new room for you.');
+socket.on('full', function(rm) {
+  alert('Room ' + rm + ' is full. We will create a new room for you.');
   window.location.hash = '';
   window.location.reload();
 });
 
-socket.on('ready', function(room) {
-  console.log('Socket is ready ' + room);
+socket.on('ready', function(rm) {
+  console.log('Socket is ready ' + rm);
+  if (isLearner) {
+    room = window.location.hash = rm;
+  }
   createPeerConnection(isLearner, configuration);
+});
+
+socket.on('readyAgain', function(rm) {
+  console.log('Socket is ready again ' + rm);
+  startNegotiation(isLearner);
 });
 
 socket.on('log', function(array) {
@@ -127,6 +130,7 @@ if (isLearner) {
   startAudio();
   socket.emit('newLearner', room);
 } else {
+  startAudio();
   socket.emit('newTeacher', room);
 }
 
@@ -180,8 +184,8 @@ function signalingMessageCallback(message) {
     }));
 
   } else if (message === 'bye') {
-// TODO: cleanup RTC connection?
-}
+    // TODO: cleanup RTC connection?
+  }
 }
 
 function createPeerConnection(isInitiator, config) {
@@ -204,25 +208,19 @@ function createPeerConnection(isInitiator, config) {
     }
   };
 
-  if (isInitiator) {
-    setupRemoteStream();
-    console.log('Creating Data Channel');
-    dataChannel = peerConn.createDataChannel('squeak');
-    onDataChannelCreated(dataChannel);
+  setupStreams(isInitiator);
+  setupChannels(isInitiator);
+  startNegotiation(isInitiator);
 
-    console.log('Creating an offer');
-    peerConn.createOffer(onLocalSessionCreated, logError, offerOptions);
-
-  } else {
+  if (!isInitiator) {
     peerConn.ondatachannel = function(event) {
       console.log('ondatachannel:', event.channel);
       dataChannel = event.channel;
-      onDataChannelCreated(dataChannel);
+      onDataChannelCreated(dataChannel, isInitiator);
     };
 
     peerConn.onaddstream = function(event) {
       console.log('Remote stream added.', event);
-      remoteStreams.push(event.stream);
       var tracks = event.stream.getTracks();
       if (tracks.length > 0 && tracks[0].kind == 'video') {
         videoCanvas.src = window.URL.createObjectURL(event.stream);
@@ -231,6 +229,36 @@ function createPeerConnection(isInitiator, config) {
        //window.URL.createObjectURL(event.stream);
       }
     };
+  }
+};
+
+function startNegotiation(isInitiator) {
+  if (isInitiator) {
+    console.log('Creating an offer');
+    peerConn.createOffer(onLocalSessionCreated, logError, offerOptions);
+  }
+}
+
+function setupStreams(isInitiator) {
+  if (peerConn) {
+    peerConn.getLocalStreams().forEach(function(s) {
+      peerConn.removeStream(s)
+    });
+
+    if (canvasStream) {
+      peerConn.addStream(canvasStream);
+    }
+    if (audioStream) {
+      peerConn.addStream(audioStream);
+    }
+  }
+}
+
+function setupChannels(isInitiator) {
+  if (isInitiator) {
+    console.log('Creating Data Channel');
+    dataChannel = peerConn.createDataChannel('squeak');
+    onDataChannelCreated(dataChannel, isInitiator);
   }
 }
 
@@ -242,11 +270,17 @@ function onLocalSessionCreated(desc) {
   }, logError);
 }
 
-function onDataChannelCreated(channel) {
+function onDataChannelCreated(channel, isInitiator) {
   console.log('onDataChannelCreated:', channel);
 
   channel.onopen = function() {
     console.log('CHANNEL opened!!!');
+    if (isInitiator) {
+      peerConn.onnegotiationneeded = function() {
+        console.log('negatiate');
+        socket.emit('renegotiate', room);
+      }
+    };
   };
 
   channel.onmessage = (adapter.browserDetails.browser === 'firefox') ?
@@ -260,8 +294,8 @@ function startStreamingCanvas(canvas) {
   if (!canvas) {
     canvas = sqCanvas;
   }
-  localStream = canvas.captureStream(30);
-  clonedStream = localStream.clone();
+  canvasStream = canvas.captureStream(30);
+  clonedStream = canvasStream.clone();
   mediaRecorder = new MediaRecorder(clonedStream);
   mediaRecorder.start();
   mediaRecorder.ondataavailable = function handleDataAvailable(event) {
@@ -275,17 +309,6 @@ function startStreamingCanvas(canvas) {
   };
 };
 
-function setupRemoteStream() {
-  if (peerConn) {
-    if (localStream) {
-      peerConn.addStream(localStream);
-    }
-    if (audioStream) {
-      peerConn.addStream(audioStream);
-    }
-  }
-};
-
 function getGetUserMedia() {
   // Note: Opera builds are unprefixed.
   return navigator.getUserMedia || navigator.webkitGetUserMedia ||
@@ -294,7 +317,6 @@ function getGetUserMedia() {
 
 function startAudio() {
   var f = getGetUserMedia();
-  console.log('f', f);
   if (f) {
     f({audio: true, video: false},
       function(stream) {
