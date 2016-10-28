@@ -218,18 +218,18 @@ function createPeerConnection(isInitiator, config) {
       dataChannel = event.channel;
       onDataChannelCreated(dataChannel, isInitiator);
     };
-
-    peerConn.onaddstream = function(event) {
-      console.log('Remote stream added.', event);
-      var tracks = event.stream.getTracks();
-      if (tracks.length > 0 && tracks[0].kind == 'video') {
-        videoCanvas.src = window.URL.createObjectURL(event.stream);
-      } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
-        audio.srcObject = event.stream;
-       //window.URL.createObjectURL(event.stream);
-      }
-    };
   }
+
+  peerConn.onaddstream = function(event) {
+    console.log('Remote stream added.', event);
+    var tracks = event.stream.getTracks();
+    if (tracks.length > 0 && tracks[0].kind == 'video') {
+      videoCanvas.src = window.URL.createObjectURL(event.stream);
+    } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
+      audio.srcObject = event.stream;
+     //window.URL.createObjectURL(event.stream);
+    }
+  };
 };
 
 function startNegotiation(isInitiator) {
