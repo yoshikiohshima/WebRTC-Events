@@ -31,6 +31,7 @@ var clonedCanvasStream;
 var canvasRecorder;
 var canvasChunks = [];
 var canvasWriterReady = true;
+var canvasWriter;
 
 var localAudioStream;
 var localAudioRecorder;
@@ -311,30 +312,30 @@ function startRecordingCanvas() {
   clonedCanvasStream = canvasStream.clone();
   canvasRecorder = new MediaRecorder(clonedCanvasStream);
   canvasRecorder.start();
+  var targetPos;
   canvasRecorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
       canvasChunks.push(event.data);
       if (canvasWriterReady) {
-        fs.root.getFile('canvas-' + room + '.webm', {create: false}, function(fileEntry) {
-          // Create a FileWriter object for our FileEntry
-          fileEntry.createWriter(function(fileWriter) {
-            fileWriter.onwriteend = function(e) {
-              console.log('ready', fileWriter.length, canvasChunks.length);
+        if (!canvasWriter.onwriteend) {
+          canvasWriter.onwriteend = function(e) {
+            console.log('ready', canvasWriter.length, targetPos);
+            if (canvasWriter.length == targetPos) {
               canvasWriterReady = true;
-            };
-
-            fileWriter.onerror = function(e) {
-              console.log('Write failed: ' + e.toString());
-            };
-            canvasWriterReady = false;
-            console.log('seeked', fileWriter.length, canvasChunks.length);
-            var superBuffer = new Blob(canvasChunks, {type: 'video/webm'});
-            canvasChunks = [];
-            fileWriter.seek(fileWriter.length); // Start write position at EOF.
-            fileWriter.write(superBuffer);
-          }, fsErrorHandler);
-        });
-      };
+              canvasWriter.seek(canvasWriter.length); // Start write position at EOF.
+            }
+          };
+          canvasWriter.onerror = function(e) {
+           console.log('Write failed: ' + e.toString());
+          };
+        }
+        canvasWriterReady = false;
+        var superBuffer = new Blob(canvasChunks, {type: 'video/webm'});
+        canvasChunks = [];
+        targetPos = canvasWriter.length + superBuffer.size;
+        console.log("target: " + targetPos);
+        canvasWriter.write(superBuffer);
+      }
     };
   };
 };
@@ -424,6 +425,7 @@ function setupFileSystem() {
       // Create a FileWriter object for our FileEntry
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
+        canvasWriter = fileWriter;
       });
     });
   }
