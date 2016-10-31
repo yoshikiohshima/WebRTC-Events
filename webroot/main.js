@@ -24,11 +24,23 @@ if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
 }
 
-var canvasStream;
-var clonedStream;
-var mediaRecorder;
+var fs;
 
-var audioStream;
+var canvasStream;
+var clonedCanvasStream;
+var canvasRecorder;
+var canvasChunks = [];
+var canvasWriterReady = true;
+
+var localAudioStream;
+var localAudioRecorder;
+var localAudioChunks = [];
+var remoteAudioStream;
+var remoteAudioRecorder;
+var remoteAudioChunks = [];
+
+var teacherEventRecorder;
+var localEventRecorder;
 
 var isLearner = !isTeacher;
 var learnerStartTime = Date.now();
@@ -108,7 +120,7 @@ socket.on('ready', function(rm) {
   if (isLearner) {
     room = window.location.hash = rm;
   }
-  createPeerConnection(isLearner, configuration);
+  //createPeerConnection(isLearner, configuration);
 });
 
 socket.on('readyAgain', function(rm) {
@@ -126,6 +138,7 @@ socket.on('message', function(message) {
 });
 
 if (isLearner) {
+  setupFileSystem();
   startStreamingCanvas();
   startAudio();
   socket.emit('newLearner', room);
@@ -248,8 +261,8 @@ function setupStreams(isInitiator) {
     if (canvasStream) {
       peerConn.addStream(canvasStream);
     }
-    if (audioStream) {
-      peerConn.addStream(audioStream);
+    if (localAudioStream) {
+      peerConn.addStream(localAudioStream);
     }
   }
 }
@@ -287,25 +300,78 @@ function onDataChannelCreated(channel, isInitiator) {
   receiveDataFirefoxFactory() : receiveDataChromeFactory();
 }
 
-var totalSize = 0;
-var chunks = [];
-
 function startStreamingCanvas(canvas) {
   if (!canvas) {
     canvas = sqCanvas;
   }
   canvasStream = canvas.captureStream(30);
-  clonedStream = canvasStream.clone();
-  mediaRecorder = new MediaRecorder(clonedStream);
-  mediaRecorder.start();
-  mediaRecorder.ondataavailable = function handleDataAvailable(event) {
+};
+
+function startRecordingCanvas() {
+  clonedCanvasStream = canvasStream.clone();
+  canvasRecorder = new MediaRecorder(clonedCanvasStream);
+  canvasRecorder.start();
+  canvasRecorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
-      chunks.push(event.data);
-      totalSize += event.data.size;
-      //console.log(event.data.size);
-    } else {
-      // ...
-    }
+      canvasChunks.push(event.data);
+      if (canvasWriterReady) {
+        fs.root.getFile('canvas-' + room + '.webm', {create: false}, function(fileEntry) {
+          // Create a FileWriter object for our FileEntry
+          fileEntry.createWriter(function(fileWriter) {
+            fileWriter.onwriteend = function(e) {
+              console.log('ready', fileWriter.length, canvasChunks.length);
+              canvasWriterReady = true;
+            };
+
+            fileWriter.onerror = function(e) {
+              console.log('Write failed: ' + e.toString());
+            };
+            canvasWriterReady = false;
+            console.log('seeked', fileWriter.length, canvasChunks.length);
+            var superBuffer = new Blob(canvasChunks, {type: 'video/webm'});
+            canvasChunks = [];
+            fileWriter.seek(fileWriter.length); // Start write position at EOF.
+            fileWriter.write(superBuffer);
+          }, fsErrorHandler);
+        });
+      };
+    };
+  };
+};
+
+function deleteCanvasFile() {
+  window.webkitRequestFileSystem(window.TEMPORARY, 1024*1024, function(files) {
+    files.root.getFile('tutor/canvas-' + room + '.webm', {create: false}, function(fileEntry) {
+      fileEntry.remove(function() {
+        console.log('File removed.');
+      }, fsErrorHandler);
+    }, fsErrorHandler);
+  });
+}
+
+function saveCanvas() {
+  if (fs) {
+    var name = 'canvas-' + room + '.webm';
+    console.log('getting file: ' + name);
+    fs.root.getFile(name, {create: false}, function(fileEntry) {
+      fileEntry.file(function(file) {
+        var reader = new FileReader();
+        reader.onloadend = function(e) {
+          console.log('onloadend', e, reader.result);
+          var blob = new Blob([reader.result], {type: 'video/webm'});
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          document.body.appendChild(a);
+          a.style = 'display: none';
+          a.href = url;
+          a.download = name;
+          a.click();
+          window.URL.revokeObjectURL(url);
+        };
+        console.log('getting file');
+        reader.readAsArrayBuffer(file);
+      });
+    });
   };
 };
 
@@ -320,22 +386,48 @@ function startAudio() {
   if (f) {
     f({audio: true, video: false},
       function(stream) {
-        audioStream = stream;
+        localAudioStream = stream;
+        localAudioRecorder = new MediaRecorder(localAudioStream);
+        localAudioRecorder.start();
+        localAudioRecorder.ondataavailable = function handleDataAvailable(event) {
+          if (event.data.size > 0) {
+            localAudioChunks.push(event.data);
+          }
+        }
       },
       function(err) {console.log(err)});
   }
 };
 
-function saveChunks() {
-  var superBuffer = new Blob(chunks, {type: 'videow/webm'});
+function saveLocalAudioChunks() {
+  var superBuffer = new Blob(localAudioChunks, {type: 'audio/webm'});
   var url = URL.createObjectURL(superBuffer);
   var a = document.createElement('a');
   document.body.appendChild(a);
   a.style = 'display: none';
   a.href = url;
-  a.download = 'test.webm';
+  a.download = 'localAudio-' + room + '.webm';
   a.click();
   window.URL.revokeObjectURL(url);
+};
+
+function fsErrorHandler(e) {
+  console.log('Error: ' + e);
+};
+
+function setupFileSystem() {
+  var success = function(files) {
+    fs = files;
+    var name = 'canvas-' + room + '.webm';
+    fs.root.getFile(name, {create: true}, function(fileEntry) {
+      console.log('file: ' + name + ' created');
+      // Create a FileWriter object for our FileEntry
+      fileEntry.createWriter(function(fileWriter) {
+        fileWriter.truncate(0);
+      });
+    });
+  }
+  window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024 * 2, success, fsErrorHandler);
 };
 
 function receiveDataChromeFactory() {
@@ -454,7 +546,6 @@ function randomToken() {
 function logError(err) {
   console.log(err.toString(), err);
 }
-
 
 function encodeEvent(evt) {
    var left = 0, top = 0;
