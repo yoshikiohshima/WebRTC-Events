@@ -319,7 +319,6 @@ function startRecordingCanvas() {
       if (canvasWriterReady) {
         if (!canvasWriter.onwriteend) {
           canvasWriter.onwriteend = function(e) {
-            console.log('ready', canvasWriter.length, targetPos);
             if (canvasWriter.length == targetPos) {
               canvasWriterReady = true;
               canvasWriter.seek(canvasWriter.length); // Start write position at EOF.
@@ -333,7 +332,6 @@ function startRecordingCanvas() {
         var superBuffer = new Blob(canvasChunks, {type: 'video/webm'});
         canvasChunks = [];
         targetPos = canvasWriter.length + superBuffer.size;
-        console.log("target: " + targetPos);
         canvasWriter.write(superBuffer);
       }
     };

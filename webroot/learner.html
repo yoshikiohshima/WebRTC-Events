@@ -40,13 +40,21 @@ THE SOFTWARE.
         <h1>SqueakJS</h1>
         <label title="Swap middle and right mouse buttons"><input id="sqSwapButtons" type="checkbox">swap buttons</label>
         <label title="Make Squeak as large as possible"><input id="sqFullscreen" type="checkbox">full screen</label>
-        <label title="send audio"<input id="switchAudio" type="checkbox"> 
+        <button id="startRecoding">Start Recording</button>
+        <button id="save">Save</button>
     </div>
     <canvas id="sqCanvas"></canvas>
-    <div id="sqSpinner"><div></div></div>
+    <div id="sqSpinner"></div>
     <audio id="audio" control autoplay></audio>
 <div id="cursor">X</div>
 <script src="learner.js"></script>
 <script src="main.js"></script>
+<script
+  document.getElementById('startRecording).addEventListener("click", function() {
+    startRecording();
+  });
+  document.getElementById('save).addEventListener("click", function() {
+    saveCanvas();
+  });
 </body>
 </html>
