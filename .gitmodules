@@ -1,3 +1,6 @@
 [submodule "SqueakJS"]
 	path = SqueakJS
 	url = https://github.com/bertfreudenberg/SqueakJS.git
+[submodule "Snap--Build-Your-Own-Blocks"]
+	path = Snap--Build-Your-Own-Blocks
+	url = https://github.com/jmoenig/Snap--Build-Your-Own-Blocks.git

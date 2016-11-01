@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+	<head>
+<script src="/socket.io/socket.io.js"></script>
+<script src="../lib/adapter.js"></script>
+
+	</head>
+	<body style="margin: 0;">
+    <video id="videoCanvas" autoplay></video>
+    <div id="sqSpinner"><div></div></div>
+    <audio id="audio" control autoplay></audio>
+    <button id="resetButton">Reset Server</button>
+<script>
+  isTeacher = true;
+  canvasName = "world";
+  document.addEventListener('keydown', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('keyup', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousedown', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousemove', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mouseup', function(evt) {sendEvent(evt);}, false);
+
+  document.getElementById('resetButton').addEventListener("click", function() {
+    if (socket && socket.connected) {
+      socket.emit('reset');
+    }});
+</script>
+<script src="../main.js"></script>
+
+	</body>
+</html>

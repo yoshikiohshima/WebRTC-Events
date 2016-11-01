@@ -34,6 +34,7 @@ var configuration = null;
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
 var teacherCursor = document.getElementById('cursor');
+console.log('canvasName: ' + canvasName);
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var sqContextW = 1200;
 var sqContextH = 900;
@@ -338,11 +339,8 @@ function onDataChannelCreated(channel, isInitiator) {
   receiveDataFirefoxFactory() : receiveDataChromeFactory();
 };
 
-function startCanvas(canvas) {
-  if (!canvas) {
-    canvas = sqCanvas;
-  }
-  canvasStream = canvas.captureStream(30);
+function startCanvas() {
+  canvasStream = sqCanvas.captureStream(30);
 };
 
 function startAudio() {
