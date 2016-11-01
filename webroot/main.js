@@ -34,7 +34,7 @@ var configuration = null;
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
 var teacherCursor = document.getElementById('cursor');
-var sqCanvas = document.getElementById('sqCanvas');
+var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var sqContextW = 1200;
 var sqContextH = 900;
 if (sqCanvas) {
