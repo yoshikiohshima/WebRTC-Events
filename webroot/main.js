@@ -5,6 +5,17 @@
   startCanvas();
 
 */
+
+/* learner sets up a room.  Learner can have hash to make a room.
+   When teacher joins, either the specified room or a first one will be matched.
+
+  learner should have a hash from the beginning to support file names of saved files.
+
+  initiator is learner
+
+  disconnect and then reconnect is not handled well.
+  saving with timestamp... but how do we ensure synchronization?
+*/
   
 
 /****************************************************************************
@@ -111,11 +122,9 @@ function getRoleFromURL(url) {
 
 // Create a random room if not already present in the URL.
 var room;
-if (isTeacher) {
-  room = window.location.hash.substring(1);
-  if (!room) {
-    room = window.location.hash = randomToken();
-  }
+room = window.location.hash.substring(1);
+if (isLearner && !room) {
+  room = window.location.hash = randomToken();
 }
 
 /****************************************************************************
@@ -141,7 +150,7 @@ socket.on('full', function(rm) {
 
 socket.on('ready', function(rm) {
   console.log('Socket is ready ' + rm);
-  if (isLearner) {
+  if (!isLearner) {
     room = window.location.hash = rm;
   }
   createPeerConnection(isLearner, configuration);
@@ -161,15 +170,19 @@ socket.on('message', function(message) {
   signalingMessageCallback(message);
 });
 
-if (isLearner) {
-  setupFileSystem();
-  startCanvas();
-  startAudio();
-  socket.emit('newLearner', room);
-} else {
-  startAudio();
-  socket.emit('newTeacher', room);
-}
+function init() {
+  if (isLearner) {
+    setupFileSystem();
+    startCanvas();
+    startAudio();
+    socket.emit('newLearner', room);
+  } else {
+    startAudio();
+    socket.emit('newTeacher', room);
+  }
+};
+
+init();
 
 if (location.hostname.match(/localhost|127\.0\.0/)) {
   socket.emit('ipaddr');
@@ -413,7 +426,7 @@ function startRecordingAudio() {
 function startRecordingRemoteAudio() {
   if (!remoteAudioStream) {return;}
   var clonedRemoteAudioStream = remoteAudioStream.clone();
-  remoteAudioRecorder = new MediaRecorder(clonedremoteAudioStream);
+  remoteAudioRecorder = new MediaRecorder(clonedRemoteAudioStream);
   remoteAudioRecorder.start();
   var targetPos;
   remoteAudioRecorder.ondataavailable = function handleDataAvailable(event) {
@@ -733,3 +746,11 @@ function renderImage(data) {
   context.putImageData(img, 0, 0);
 }
 
+/*function audioMixer() {
+  var cxt = new AudioContext();
+  if (localAudioStream && remoteAudioStream) {
+    var c1 = cxt.createMediaStreamSource(localAudioStream);
+    var c2 = cxt.createMediaStreamSource(remoteAudioStream);
+    var dest = cxt.createMediaStreamDestination(remoteAudioStream);
+  }
+}*/

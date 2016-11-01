@@ -27,7 +27,7 @@ app.listen(8080);
 var teachersQueue = [];
 var learnersQueue = [];
 
-function findAvailableFrom(queue) {
+function findFirstAvailableFrom(queue) {
   while (true) {
     if (queue.length == 0) {
       return null;
@@ -39,36 +39,38 @@ function findAvailableFrom(queue) {
       queue.shift();
     }
   }
-}
+};
 
-function cleanupIn(queue, sock) {
+function findMatchFor(pair, queue) {
+  var room = pair[1];
   while (true) {
     if (queue.length == 0) {
       return null;
     }
     var elem = queue[0];
-    if (elem[0].connected) {
+    if (elem[0].connected && (elem[1] === room || elem[1] == '')) {
       return elem;
     } else {
       queue.shift();
     }
   }
-}
+};
 
 function maybeStart() {
-    var teacher = findAvailableFrom(teachersQueue);
-    var learner = findAvailableFrom(learnersQueue);
-    if (teacher && learner) {
-      teachersQueue.shift();
-      learnersQueue.shift();
-      var socket = teacher[0];
-      var room = teacher[1];
-      socket.join(room);
-      learner[0].join(room);
-      io.sockets.in(room).emit('ready', room);
-    }
+  var learner = findFirstAvailableFrom(learnersQueue);
+  if (learner) {
+    var teacher = findMatchFor(learner, teachersQueue);
+  }
+  if (teacher && learner) {
+    teachersQueue.shift();
+    learnersQueue.shift();
+    var socket = learner[0];
+    var room = learner[1];
+    socket.join(room);
+    teacher[0].join(room);
+    io.sockets.in(room).emit('ready', room);
+  }
 }
-
 
 var io = socketIO.listen(app);
 io.sockets.on('connection', function(socket) {
@@ -87,15 +89,15 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('newTeacher', function(room) {
-    log('a new teacher is creating a room: ' + room);
-    socket.emit('created', room, socket.id);
+    log('a new teacher is looking for a room: ' + room);
     teachersQueue.push([socket, room]);
     maybeStart();
   });
 
-  socket.on('newLearner', function () {
-    log('a new learner joined: ');
-    learnersQueue.push([socket]);
+  socket.on('newLearner', function (room) {
+    log('a new learner is creating a room: ' + room);
+    socket.emit('created', room, socket.id);
+    learnersQueue.push([socket, room]);
     maybeStart();
   });
   
