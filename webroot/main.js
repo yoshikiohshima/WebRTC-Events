@@ -121,7 +121,7 @@ socket.on('ready', function(rm) {
   if (isLearner) {
     room = window.location.hash = rm;
   }
-  //createPeerConnection(isLearner, configuration);
+  createPeerConnection(isLearner, configuration);
 });
 
 socket.on('readyAgain', function(rm) {
