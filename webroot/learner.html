@@ -38,10 +38,10 @@ THE SOFTWARE.
 <body>
     <div id="sqHeader">
         <h1>SqueakJS</h1>
+        <button id="startRecording">Start Recording</button>
+        <button id="save">Save</button>
         <label title="Swap middle and right mouse buttons"><input id="sqSwapButtons" type="checkbox">swap buttons</label>
         <label title="Make Squeak as large as possible"><input id="sqFullscreen" type="checkbox">full screen</label>
-        <button id="startRecoding">Start Recording</button>
-        <button id="save">Save</button>
     </div>
     <canvas id="sqCanvas"></canvas>
     <div id="sqSpinner"></div>
@@ -49,12 +49,13 @@ THE SOFTWARE.
 <div id="cursor">X</div>
 <script src="learner.js"></script>
 <script src="main.js"></script>
-<script
-  document.getElementById('startRecording).addEventListener("click", function() {
+<script>
+  document.getElementById("startRecording").addEventListener("click", function() {
     startRecording();
   });
-  document.getElementById('save).addEventListener("click", function() {
-    saveCanvas();
+  document.getElementById("save").addEventListener("click", function() {
+    saveFiles();
   });
+</script>
 </body>
 </html>

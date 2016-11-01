@@ -1,5 +1,12 @@
 'use strict';
 
+/*
+  startAudio();
+  startCanvas();
+
+*/
+  
+
 /****************************************************************************
 * Initial setup
 ****************************************************************************/
@@ -15,19 +22,17 @@ var configuration = null;
 
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
-var trail = document.getElementById('events');
 var teacherCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById('sqCanvas');
 var sqContextW = 1200;
 var sqContextH = 900;
 if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
-}
+};
 
 var fs;
 
 var canvasStream;
-var clonedCanvasStream;
 var canvasRecorder;
 var canvasChunks = [];
 var canvasWriterReady = true;
@@ -36,9 +41,27 @@ var canvasWriter;
 var localAudioStream;
 var localAudioRecorder;
 var localAudioChunks = [];
+var localAudioWriterReady = true;
+var localAudioWriter;
+
 var remoteAudioStream;
 var remoteAudioRecorder;
 var remoteAudioChunks = [];
+var remoteAudioWriterReady = true;
+var remoteAudioWriter;
+
+var remoteEvents = [];
+var remoteEventsWriterReady = true;
+var remoteEventsWriter;
+var remoteEventsQueuer;
+
+function Media() {
+  this.stream = null;
+  this.recorder = null;
+  this.writer = null;
+  this.writerReady = true;
+  this.chunks = [];
+};
 
 var teacherEventRecorder;
 var localEventRecorder;
@@ -140,7 +163,7 @@ socket.on('message', function(message) {
 
 if (isLearner) {
   setupFileSystem();
-  startStreamingCanvas();
+  startCanvas();
   startAudio();
   socket.emit('newLearner', room);
 } else {
@@ -240,7 +263,8 @@ function createPeerConnection(isInitiator, config) {
     if (tracks.length > 0 && tracks[0].kind == 'video') {
       videoCanvas.src = window.URL.createObjectURL(event.stream);
     } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
-      audio.srcObject = event.stream;
+      remoteAudioStream = event.stream;
+      audio.srcObject = remoteAudioStream;
      //window.URL.createObjectURL(event.stream);
     }
   };
@@ -299,17 +323,35 @@ function onDataChannelCreated(channel, isInitiator) {
 
   channel.onmessage = (adapter.browserDetails.browser === 'firefox') ?
   receiveDataFirefoxFactory() : receiveDataChromeFactory();
-}
+};
 
-function startStreamingCanvas(canvas) {
+function startCanvas(canvas) {
   if (!canvas) {
     canvas = sqCanvas;
   }
   canvasStream = canvas.captureStream(30);
 };
 
+function startAudio() {
+  var f = getGetUserMedia();
+  if (f) {
+    f({audio: true, video: false},
+      function(stream) {
+        localAudioStream = stream;
+      },
+      function(err) {console.log(err)});
+  }
+};
+
+function startRecording() {
+  startRecordingCanvas();
+  startRecordingAudio();
+  startRecordingRemoteAudio();
+  startRecordingRemoteEvents();
+};
+
 function startRecordingCanvas() {
-  clonedCanvasStream = canvasStream.clone();
+  var clonedCanvasStream = canvasStream.clone();
   canvasRecorder = new MediaRecorder(clonedCanvasStream);
   canvasRecorder.start();
   var targetPos;
@@ -338,17 +380,96 @@ function startRecordingCanvas() {
   };
 };
 
-function deleteCanvasFile() {
-  window.webkitRequestFileSystem(window.TEMPORARY, 1024*1024, function(files) {
-    files.root.getFile('tutor/canvas-' + room + '.webm', {create: false}, function(fileEntry) {
-      fileEntry.remove(function() {
-        console.log('File removed.');
-      }, fsErrorHandler);
-    }, fsErrorHandler);
-  });
-}
+function startRecordingAudio() {
+  var clonedLocalAudioStream = localAudioStream.clone();
+  localAudioRecorder = new MediaRecorder(clonedLocalAudioStream);
+  localAudioRecorder.start();
+  var targetPos;
+  localAudioRecorder.ondataavailable = function handleDataAvailable(event) {
+    if (event.data.size > 0) {
+      localAudioChunks.push(event.data);
+      if (localAudioWriterReady) {
+        if (!localAudioWriter.onwriteend) {
+          localAudioWriter.onwriteend = function(e) {
+            if (localAudioWriter.length == targetPos) {
+              localAudioWriterReady = true;
+              localAudioWriter.seek(localAudioWriter.length);
+            }
+          };
+          localAudioWriter.onerror = function(e) {
+           console.log('Write failed: ' + e.toString());
+          };
+        }
+        localAudioWriterReady = false;
+        var superBuffer = new Blob(localAudioChunks, {type: 'audio/webm'});
+        localAudioChunks = [];
+        targetPos = localAudioWriter.length + superBuffer.size;
+        localAudioWriter.write(superBuffer);
+      }
+    };
+  };
+};
 
-function saveCanvas() {
+function startRecordingRemoteAudio() {
+  if (!remoteAudioStream) {return;}
+  var clonedRemoteAudioStream = remoteAudioStream.clone();
+  remoteAudioRecorder = new MediaRecorder(clonedremoteAudioStream);
+  remoteAudioRecorder.start();
+  var targetPos;
+  remoteAudioRecorder.ondataavailable = function handleDataAvailable(event) {
+    if (event.data.size > 0) {
+      remoteAudioChunks.push(event.data);
+      if (remoteAudioWriterReady) {
+        if (!remoteAudioWriter.onwriteend) {
+          remoteAudioWriter.onwriteend = function(e) {
+            if (remoteAudioWriter.length == targetPos) {
+              remoteAudioWriterReady = true;
+              remoteAudioWriter.seek(remoteAudioWriter.length);
+            }
+          };
+          remoteAudioWriter.onerror = function(e) {
+           console.log('Write failed: ' + e.toString());
+          };
+        };
+        remoteAudioWriterReady = false;
+        var superBuffer = new Blob(remoteAudioChunks, {type: 'audio/webm'});
+        remoteAudioChunks = [];
+        targetPos = remoteAudioWriter.length + superBuffer.size;
+        remoteAudioWriter.write(superBuffer);
+      }
+    };
+  };
+};
+
+function startRecordingRemoteEvents() {
+  var targetPos;
+  remoteEventsQueuer = function(event) {
+    remoteEvents.push([event, Date.now()]);
+    if (remoteEventsWriterReady) {
+      if (!remoteEventsWriter.onwriteend) {
+        remoteEventsWriter.onwriteend = function(e) {
+          if (remoteEventsWriter.length == targetPos) {
+            remoteEventsWriterReady = true;
+            remoteEventsWriter.seek(remoteEventsWriter.length);
+          }
+        };
+        remoteEventsWriter.onerror = function(e) {
+         console.log('Write failed: ' + e.toString());
+        };
+      };
+      remoteEventsWriterReady = false;
+      var textBuffer = remoteEvents.map(function(pair) {
+        return pair[0][0].toString() + ',' + pair[0][1].toString() + ',' + pair[0][2].toString() + ',' + pair[1].toString() + '\n';
+      });
+      var superBuffer = new Blob(textBuffer, {type: 'text/plain'});
+      remoteEvents = [];
+      targetPos = remoteEventsWriter.length + superBuffer.size;
+      remoteEventsWriter.write(superBuffer);
+    };
+  };
+};
+
+/*function saveCanvas() {
   if (fs) {
     var name = 'canvas-' + room + '.webm';
     console.log('getting file: ' + name);
@@ -373,41 +494,60 @@ function saveCanvas() {
     });
   };
 };
+*/
 
 function getGetUserMedia() {
   // Note: Opera builds are unprefixed.
   return navigator.getUserMedia || navigator.webkitGetUserMedia ||
             navigator.mozGetUserMedia || navigator.msGetUserMedia;
-}
-
-function startAudio() {
-  var f = getGetUserMedia();
-  if (f) {
-    f({audio: true, video: false},
-      function(stream) {
-        localAudioStream = stream;
-        localAudioRecorder = new MediaRecorder(localAudioStream);
-        localAudioRecorder.start();
-        localAudioRecorder.ondataavailable = function handleDataAvailable(event) {
-          if (event.data.size > 0) {
-            localAudioChunks.push(event.data);
-          }
-        }
-      },
-      function(err) {console.log(err)});
-  }
 };
 
-function saveLocalAudioChunks() {
-  var superBuffer = new Blob(localAudioChunks, {type: 'audio/webm'});
-  var url = URL.createObjectURL(superBuffer);
-  var a = document.createElement('a');
-  document.body.appendChild(a);
-  a.style = 'display: none';
-  a.href = url;
-  a.download = 'localAudio-' + room + '.webm';
-  a.click();
-  window.URL.revokeObjectURL(url);
+function saveFiles() {
+  saveRemoteEvents();
+  saveLocalAudio();
+  saveRemoteAudio();
+  saveCanvas();
+};
+
+function saveRemoteEvents() {
+  return saveFile('remoteEvents-' + room + '.txt', 'text/plain');
+};
+
+function saveLocalAudio() {
+  return saveFile('localAudio-' + room + '.webm', 'audio/webm');
+};
+
+function saveRemoteAudio() {
+  return saveFile('remoteAudio-' + room + '.webm', 'audio/webm');
+};
+
+function saveCanvas() {
+  return saveFile('canvas-' + room + '.webm', 'video/webm');
+};
+
+function saveFile(name, type) {
+  if (fs) {
+    console.log('getting file: ' + name);
+    fs.root.getFile(name, {create: false}, function(fileEntry) {
+      fileEntry.file(function(file) {
+        var reader = new FileReader();
+        reader.onloadend = function(e) {
+          console.log('onloadend', e, reader.result);
+          var blob = new Blob([reader.result], {type: type});
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          document.body.appendChild(a);
+          a.style = 'display: none';
+          a.href = url;
+          a.download = name;
+          a.click();
+          window.URL.revokeObjectURL(url);
+        };
+        console.log('getting file');
+        reader.readAsArrayBuffer(file);
+      });
+    });
+  };
 };
 
 function fsErrorHandler(e) {
@@ -417,13 +557,37 @@ function fsErrorHandler(e) {
 function setupFileSystem() {
   var success = function(files) {
     fs = files;
-    var name = 'canvas-' + room + '.webm';
-    fs.root.getFile(name, {create: true}, function(fileEntry) {
-      console.log('file: ' + name + ' created');
-      // Create a FileWriter object for our FileEntry
+    var canvasName = 'canvas-' + room + '.webm';
+    fs.root.getFile(canvasName, {create: true}, function(fileEntry) {
+      console.log('file: ' + canvasName + ' created');
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
         canvasWriter = fileWriter;
+      });
+    });
+
+    var localAudioName = 'localAudio-' + room + '.webm';
+    fs.root.getFile(localAudioName, {create: true}, function(fileEntry) {
+      console.log('file: ' + localAudioName + ' created');
+      fileEntry.createWriter(function(fileWriter) {
+        fileWriter.truncate(0);
+        localAudioWriter = fileWriter;
+      });
+    });
+    var remoteAudioName = 'remoteAudio-' + room + '.webm';
+    fs.root.getFile(remoteAudioName, {create: true}, function(fileEntry) {
+      console.log('file: ' + remoteAudioName + ' created');
+      fileEntry.createWriter(function(fileWriter) {
+        fileWriter.truncate(0);
+        remoteAudioWriter = fileWriter;
+      });
+    });
+    var remoteEventsName = 'remoteEvents-' + room + '.txt';
+    fs.root.getFile(remoteEventsName, {create: true}, function(fileEntry) {
+      console.log('file: ' + remoteEventsName + ' created');
+      fileEntry.createWriter(function(fileWriter) {
+        fileWriter.truncate(0);
+        remoteEventsWriter = fileWriter;
       });
     });
   }
@@ -488,31 +652,6 @@ function receiveDataFirefoxFactory() {
 var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove:4};
 var dataTypes = {image: 0, event: 1};
 
-function sendImage() {
-  // Split data channel message in chunks of this byte length.
-  var CHUNK_LEN = 64000;
-  console.log('width and height ', sqContextW, sqContextH);
-  var img = sqContext.getImageData(0, 0, sqContextW, sqContextH),
-  len = img.data.byteLength,
-  n = len / CHUNK_LEN | 0;
-
-  console.log('Sending a total of ' + len + ' byte(s) of type ');
-  dataChannel.send(dataTypes.image << 24 | len);
-
-  // split the photo and send in chunks of about 64KB
-  for (var i = 0; i < n; i++) {
-    var start = i * CHUNK_LEN,
-    end = (i + 1) * CHUNK_LEN;
-    dataChannel.send(img.data.subarray(start, end));
-  }
-
-  // send the reminder, if any
-  if (len % CHUNK_LEN) {
-    console.log('last ' + len % CHUNK_LEN + ' byte(s)');
-    dataChannel.send(img.data.subarray(n * CHUNK_LEN));
-  }
-}
-
 function sendEvent(evt) {
   if (dataChannel) {
     var buf = encodeEvent(evt);
@@ -520,7 +659,7 @@ function sendEvent(evt) {
 
     dataChannel.send(buf);
   }
-}
+};
 
 function renderEvent(buf) {
   var left = 0, top = 0;
@@ -530,14 +669,11 @@ function renderEvent(buf) {
   }
   teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
   teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
-}
 
-function renderImage(data) {
-  var context = videoCanvas.getContext('2d');
-  var img = context.createImageData(sqContextW, sqContextH);
-  img.data.set(data);
-  context.putImageData(img, 0, 0);
-}
+  if (remoteEventsQueuer) {
+    remoteEventsQueuer(buf);
+  }
+};
 
 function randomToken() {
   return Math.floor((1 + Math.random()) * 1e16).toString(16).substring(1);
@@ -564,3 +700,36 @@ function encodeEvent(evt) {
    }
    return v.buffer;
 }
+
+function sendImage() {
+  // Split data channel message in chunks of this byte length.
+  var CHUNK_LEN = 64000;
+  console.log('width and height ', sqContextW, sqContextH);
+  var img = sqContext.getImageData(0, 0, sqContextW, sqContextH),
+  len = img.data.byteLength,
+  n = len / CHUNK_LEN | 0;
+
+  console.log('Sending a total of ' + len + ' byte(s) of type ');
+  dataChannel.send(dataTypes.image << 24 | len);
+
+  // split the photo and send in chunks of about 64KB
+  for (var i = 0; i < n; i++) {
+    var start = i * CHUNK_LEN,
+    end = (i + 1) * CHUNK_LEN;
+    dataChannel.send(img.data.subarray(start, end));
+  }
+
+  // send the reminder, if any
+  if (len % CHUNK_LEN) {
+    console.log('last ' + len % CHUNK_LEN + ' byte(s)');
+    dataChannel.send(img.data.subarray(n * CHUNK_LEN));
+  }
+}
+
+function renderImage(data) {
+  var context = videoCanvas.getContext('2d');
+  var img = context.createImageData(sqContextW, sqContextH);
+  img.data.set(data);
+  context.putImageData(img, 0, 0);
+}
+
