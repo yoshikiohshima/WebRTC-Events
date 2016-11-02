@@ -26,6 +26,49 @@ app.listen(8080);
 
 var teachersQueue = [];
 var learnersQueue = [];
+var learners = {}; // room -> socket;
+var teachers = {}; // room -> socket;
+
+function addLearner(socket, room) {
+  if (learners[room] && learners[room].connected) {
+    return 'in use';
+  }
+  learnersQueue.push([socket, room]);
+  learners[room] = socket;
+  return 'added';
+};
+
+function removeLearner(socket) {
+  for (var k in learners) {
+    if (learners[k] === socket) {
+      delete learners[k];
+    }
+  }
+  return false;
+};
+
+function isLearner(socket) {
+  for (var k in learners) {
+    if (learners[k] === socket) {
+      return true;
+    }
+  }
+  return false;
+};
+
+function roomFromSocket(socket) {
+  for (var k in learners) {
+    if (learners[k] === socket) {
+      return k;
+    }
+  }
+  for (var k in teachers) {
+    if (teachers[k] === socket) {
+      return k;
+    }
+  }
+  return null;
+}
 
 function findFirstAvailableFrom(queue) {
   while (true) {
@@ -57,23 +100,29 @@ function findMatchFor(pair, queue) {
 };
 
 function maybeStart() {
+  console.log("maybeStart");
   var learner = findFirstAvailableFrom(learnersQueue);
   if (learner) {
+    console.log('l: ' + learner[1]);
     var teacher = findMatchFor(learner, teachersQueue);
   }
   if (teacher && learner) {
+    console.log('t: ' + teacher[1]);
     teachersQueue.shift();
     learnersQueue.shift();
     var socket = learner[0];
     var room = learner[1];
     socket.join(room);
     teacher[0].join(room);
+    teachers[room] = teacher[0];
     io.sockets.in(room).emit('ready', room);
   }
+  console.log('end of maybeStart()');
 }
 
 var io = socketIO.listen(app);
 io.sockets.on('connection', function(socket) {
+  console.log('connected: ' + socket.id);
 
   // convenience function to log server messages on the client
   function log() {
@@ -95,10 +144,14 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('newLearner', function (room) {
-    log('a new learner is creating a room: ' + room);
+    log('a new learner with a room: ' + room);
     socket.emit('created', room, socket.id);
-    learnersQueue.push([socket, room]);
-    maybeStart();
+    var result = addLearner(socket, room);
+    if (result === 'added') {
+      maybeStart();
+    } else if (result === 'in use') {
+      socket.emit('full', room);
+    }
   });
   
   socket.on('ipaddr', function() {
@@ -118,6 +171,12 @@ io.sockets.on('connection', function(socket) {
 
   socket.on('disconnect', function() {
     console.log('disconnected');
+    var room = roomFromSocket(socket);
+    console.log('room: ' + room);
+    if (room) {
+      delete learners[room];
+      io.sockets.in(room).emit('peerDisconnected', room);
+    }
   });
 
   socket.on('renegotiate', function(room) {
@@ -125,9 +184,19 @@ io.sockets.on('connection', function(socket) {
     io.sockets.in(room).emit('readyAgain', room);
   });
 
-  socket.on('reset', function(){
+  socket.on('reset', function() {
     console.log('reset queues');
     teachersQueue = [];
     learnersQueue = [];
+    learners = {};
   });
+
+socket.on('dump', function() {
+  console.log('dump');
+  console.log(learners);
+  console.log(learnersQueue);
+  console.log(teachersQueue);
+});
+
+
 });

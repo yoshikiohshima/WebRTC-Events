@@ -13,8 +13,22 @@
 
   initiator is learner
 
-  disconnect and then reconnect is not handled well.
+  disconnect and then reconnect is not handled.  The way it should work is that the learner keeps its room on the server.
+
+  There are two modes of disconnection; one is the learner loses socket connection to the server, and the other is to the peer.  The server case is not critical, as long as it can keep the peer, but then when the peer is also lost, the teacher may need to rejoin.  When the teacher keeps the room id, it should be possible.
+
+
+  The server needs to maintain the list of active learners to allow reconnect.  When a learner disconnected from the server, the learner keeps the room id. upon learner's reconnect, it is added back to the active learners.
+
+  Now there may be a 'full' case. Actually there are two full cases.  when two learners try to use the same room id, and when two teachers try to server the same learner.
+
+
+
+
+
   saving with timestamp... but how do we ensure synchronization?
+
+  
 */
   
 
@@ -170,6 +184,34 @@ socket.on('message', function(message) {
   console.log('Client received message:', message);
   signalingMessageCallback(message);
 });
+
+socket.on('reconnect', function(message) {
+  console.log('Client reconnected:', message);
+  if (isLearner) {
+    socket.emit('newLearner', room);
+  } else {
+    socket.emit('newTeacher', room);
+  }
+});
+
+socket.on('peerDisconnected', function(rm) {
+  // the other disconnected from the server, but I seem to have survived as I received this.
+  // if I am a learner, keep myself in and wait for a new teacher.
+  // if I am a teacher, just rejoin as a new teacher
+  if (peerConn) {
+    peerConn.close();
+    peerConn = null;
+  }
+  if (isLearner) {
+    socket.emit('newLearner', room);
+  } else {
+    socket.emit('newTeacher', room);
+  }
+});
+
+function dump() {
+  socket.emit('dump');
+}
 
 function init() {
   if (isLearner) {
@@ -660,15 +702,16 @@ function receiveDataFirefoxFactory() {
 * Aux functions, mostly UI-related
 ****************************************************************************/
 
-var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove:4};
+var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove: 4};
 var dataTypes = {image: 0, event: 1};
 
 function sendEvent(evt) {
   if (dataChannel) {
     var buf = encodeEvent(evt);
-    dataChannel.send(dataTypes.event << 24 | buf.byteLength);
-
-    dataChannel.send(buf);
+    try {
+      dataChannel.send(dataTypes.event << 24 | buf.byteLength);
+      dataChannel.send(buf);
+    } catch(e) {console.log('send failed', e);}
   }
 };
 
