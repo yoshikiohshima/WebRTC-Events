@@ -58,29 +58,6 @@ if (sqCanvas) {
 
 var fs;
 
-var canvasStream;
-var canvasRecorder;
-var canvasChunks = [];
-var canvasWriterReady = true;
-var canvasWriter;
-
-var localAudioStream;
-var localAudioRecorder;
-var localAudioChunks = [];
-var localAudioWriterReady = true;
-var localAudioWriter;
-
-var remoteAudioStream;
-var remoteAudioRecorder;
-var remoteAudioChunks = [];
-var remoteAudioWriterReady = true;
-var remoteAudioWriter;
-
-var remoteEvents = [];
-var remoteEventsWriterReady = true;
-var remoteEventsWriter;
-var remoteEventsQueuer;
-
 function Media() {
   this.stream = null;
   this.recorder = null;
@@ -89,7 +66,12 @@ function Media() {
   this.chunks = [];
 };
 
-var teacherEventRecorder;
+var canvas = new Media();
+var localAudio = new Media();
+var remoteAudio = new Media();
+var remoteEvents = new Media();
+var localEvents = new Media();
+
 var localEventRecorder;
 
 var isLearner = !isTeacher;
@@ -320,8 +302,8 @@ function createPeerConnection(isInitiator, config) {
     if (tracks.length > 0 && tracks[0].kind == 'video') {
       videoCanvas.src = window.URL.createObjectURL(event.stream);
     } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
-      remoteAudioStream = event.stream;
-      audio.srcObject = remoteAudioStream;
+      remoteAudio.stream = event.stream;
+      audio.srcObject = remoteAudio.stream;
      //window.URL.createObjectURL(event.stream);
     }
   };
@@ -340,11 +322,11 @@ function setupStreams(isInitiator) {
       peerConn.removeStream(s)
     });
 
-    if (canvasStream) {
-      peerConn.addStream(canvasStream);
+    if (canvas.stream) {
+      peerConn.addStream(canvas.stream);
     }
-    if (localAudioStream) {
-      peerConn.addStream(localAudioStream);
+    if (localAudio.stream) {
+      peerConn.addStream(localAudio.stream);
     }
   }
 }
@@ -383,7 +365,7 @@ function onDataChannelCreated(channel, isInitiator) {
 };
 
 function startCanvas() {
-  canvasStream = sqCanvas.captureStream(30);
+  canvas.stream = sqCanvas.captureStream(30);
 };
 
 function startAudio() {
@@ -391,7 +373,7 @@ function startAudio() {
   if (f) {
     f({audio: true, video: false},
       function(stream) {
-        localAudioStream = stream;
+        localAudio.stream = stream;
       },
       function(err) {console.log(err)});
   }
@@ -405,91 +387,91 @@ function startRecording() {
 };
 
 function startRecordingCanvas() {
-  var clonedCanvasStream = canvasStream.clone();
-  canvasRecorder = new MediaRecorder(clonedCanvasStream);
-  canvasRecorder.start();
+  var cloned = canvas.stream.clone();
+  canvas.recorder = new MediaRecorder(cloned);
+  canvas.recorder.start();
   var targetPos;
-  canvasRecorder.ondataavailable = function handleDataAvailable(event) {
+  canvas.recorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
-      canvasChunks.push(event.data);
-      if (canvasWriterReady) {
-        if (!canvasWriter.onwriteend) {
-          canvasWriter.onwriteend = function(e) {
-            if (canvasWriter.length == targetPos) {
-              canvasWriterReady = true;
-              canvasWriter.seek(canvasWriter.length); // Start write position at EOF.
+      canvas.chunks.push(event.data);
+      if (canvas.writerReady) {
+        if (!canvas.writer.onwriteend) {
+          canvas.writer.onwriteend = function(e) {
+            if (canvas.writer.length == targetPos) {
+              canvas.writerReady = true;
+              canvas.writer.seek(canvas.writer.length); // Start write position at EOF.
             }
           };
-          canvasWriter.onerror = function(e) {
+          canvas.writer.onerror = function(e) {
            console.log('Write failed: ' + e.toString());
           };
         }
-        canvasWriterReady = false;
-        var superBuffer = new Blob(canvasChunks, {type: 'video/webm'});
-        canvasChunks = [];
-        targetPos = canvasWriter.length + superBuffer.size;
-        canvasWriter.write(superBuffer);
+        canvas.writerReady = false;
+        var superBuffer = new Blob(canvas.chunks, {type: 'video/webm'});
+        canvas.chunks = [];
+        targetPos = canvas.writer.length + superBuffer.size;
+        canvas.writer.write(superBuffer);
       }
     };
   };
 };
 
 function startRecordingAudio() {
-  var clonedLocalAudioStream = localAudioStream.clone();
-  localAudioRecorder = new MediaRecorder(clonedLocalAudioStream);
-  localAudioRecorder.start();
+  var cloned = localAudio.stream.clone();
+  localAudio.recorder = new MediaRecorder(cloned);
+  localAudio.recorder.start();
   var targetPos;
-  localAudioRecorder.ondataavailable = function handleDataAvailable(event) {
+  localAudio.recorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
-      localAudioChunks.push(event.data);
-      if (localAudioWriterReady) {
-        if (!localAudioWriter.onwriteend) {
-          localAudioWriter.onwriteend = function(e) {
-            if (localAudioWriter.length == targetPos) {
-              localAudioWriterReady = true;
-              localAudioWriter.seek(localAudioWriter.length);
+      localAudio.chunks.push(event.data);
+      if (localAudio.writerReady) {
+        if (!localAudio.writer.onwriteend) {
+          localAudio.writer.onwriteend = function(e) {
+            if (localAudio.writer.length == targetPos) {
+              localAudio.writerReady = true;
+              localAudio.writer.seek(localAudio.writer.length);
             }
           };
-          localAudioWriter.onerror = function(e) {
+          localAudio.writer.onerror = function(e) {
            console.log('Write failed: ' + e.toString());
           };
         }
-        localAudioWriterReady = false;
-        var superBuffer = new Blob(localAudioChunks, {type: 'audio/webm'});
-        localAudioChunks = [];
-        targetPos = localAudioWriter.length + superBuffer.size;
-        localAudioWriter.write(superBuffer);
+        localAudio.writerReady = false;
+        var superBuffer = new Blob(localAudio.chunks, {type: 'audio/webm'});
+        localAudio.chunks = [];
+        targetPos = localAudio.writer.length + superBuffer.size;
+        localAudio.writer.write(superBuffer);
       }
     };
   };
 };
 
 function startRecordingRemoteAudio() {
-  if (!remoteAudioStream) {return;}
-  var clonedRemoteAudioStream = remoteAudioStream.clone();
-  remoteAudioRecorder = new MediaRecorder(clonedRemoteAudioStream);
-  remoteAudioRecorder.start();
+  if (!remoteAudio.stream) {return;}
+  var cloned = remoteAudio.stream.clone();
+  remoteAudio.recorder = new MediaRecorder(cloned);
+  remoteAudio.recorder.start();
   var targetPos;
-  remoteAudioRecorder.ondataavailable = function handleDataAvailable(event) {
+  remoteAudio.recorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
-      remoteAudioChunks.push(event.data);
-      if (remoteAudioWriterReady) {
-        if (!remoteAudioWriter.onwriteend) {
-          remoteAudioWriter.onwriteend = function(e) {
-            if (remoteAudioWriter.length == targetPos) {
-              remoteAudioWriterReady = true;
-              remoteAudioWriter.seek(remoteAudioWriter.length);
+      remoteAudio.chunks.push(event.data);
+      if (remoteAudio.writerReady) {
+        if (!remoteAudio.writer.onwriteend) {
+          remoteAudio.writer.onwriteend = function(e) {
+            if (remoteAudio.writer.length == targetPos) {
+              remoteAudio.writerReady = true;
+              remoteAudio.writer.seek(remoteAudio.writer.length);
             }
           };
-          remoteAudioWriter.onerror = function(e) {
+          remoteAudio.writer.onerror = function(e) {
            console.log('Write failed: ' + e.toString());
           };
         };
-        remoteAudioWriterReady = false;
-        var superBuffer = new Blob(remoteAudioChunks, {type: 'audio/webm'});
-        remoteAudioChunks = [];
-        targetPos = remoteAudioWriter.length + superBuffer.size;
-        remoteAudioWriter.write(superBuffer);
+        remoteAudio.writerReady = false;
+        var superBuffer = new Blob(remoteAudio.chunks, {type: 'audio/webm'});
+        remoteAudio.chunks = [];
+        targetPos = remoteAudio.writer.length + superBuffer.size;
+        remoteAudio.writer.write(superBuffer);
       }
     };
   };
@@ -497,28 +479,28 @@ function startRecordingRemoteAudio() {
 
 function startRecordingRemoteEvents() {
   var targetPos;
-  remoteEventsQueuer = function(event) {
-    remoteEvents.push([event, Date.now()]);
-    if (remoteEventsWriterReady) {
-      if (!remoteEventsWriter.onwriteend) {
-        remoteEventsWriter.onwriteend = function(e) {
-          if (remoteEventsWriter.length == targetPos) {
-            remoteEventsWriterReady = true;
-            remoteEventsWriter.seek(remoteEventsWriter.length);
+  remoteEvents.queuer = function(event) {
+    remoteEvents.chunks.push([event, Date.now()]);
+    if (remoteEvents.writerReady) {
+      if (!remoteEvents.writer.onwriteend) {
+        remoteEvents.writer.onwriteend = function(e) {
+          if (remoteEvents.writer.length == targetPos) {
+            remoteEvents.writerReady = true;
+            remoteEvents.writer.seek(remoteEvents.writer.length);
           }
         };
-        remoteEventsWriter.onerror = function(e) {
+        remoteEvents.writer.onerror = function(e) {
          console.log('Write failed: ' + e.toString());
         };
       };
-      remoteEventsWriterReady = false;
-      var textBuffer = remoteEvents.map(function(pair) {
+      remoteEvents.writerReady = false;
+      var textBuffer = remoteEvents.chunks.map(function(pair) {
         return pair[0][0].toString() + ',' + pair[0][1].toString() + ',' + pair[0][2].toString() + ',' + pair[1].toString() + '\n';
       });
       var superBuffer = new Blob(textBuffer, {type: 'text/plain'});
-      remoteEvents = [];
-      targetPos = remoteEventsWriter.length + superBuffer.size;
-      remoteEventsWriter.write(superBuffer);
+      remoteEvents.chunks = [];
+      targetPos = remoteEvents.writer.length + superBuffer.size;
+      remoteEvents.writer.write(superBuffer);
     };
   };
 };
@@ -581,7 +563,6 @@ function saveCanvas() {
 
 function saveFile(name, type) {
   if (fs) {
-    console.log('getting file: ' + name);
     fs.root.getFile(name, {create: false}, function(fileEntry) {
       fileEntry.file(function(file) {
         var reader = new FileReader();
@@ -597,7 +578,6 @@ function saveFile(name, type) {
           a.click();
           window.URL.revokeObjectURL(url);
         };
-        console.log('getting file');
         reader.readAsArrayBuffer(file);
       });
     });
@@ -611,37 +591,37 @@ function fsErrorHandler(e) {
 function setupFileSystem() {
   var success = function(files) {
     fs = files;
-    var canvasName = 'canvas-' + room + '.webm';
-    fs.root.getFile(canvasName, {create: true}, function(fileEntry) {
-      console.log('file: ' + canvasName + ' created');
+    var cName = 'canvas-' + room + '.webm';
+    fs.root.getFile(cName, {create: true}, function(fileEntry) {
+      console.log('file: ' + cName + ' created');
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
-        canvasWriter = fileWriter;
+        canvas.writer = fileWriter;
       });
     });
 
-    var localAudioName = 'localAudio-' + room + '.webm';
-    fs.root.getFile(localAudioName, {create: true}, function(fileEntry) {
-      console.log('file: ' + localAudioName + ' created');
+    var laName = 'localAudio-' + room + '.webm';
+    fs.root.getFile(laName, {create: true}, function(fileEntry) {
+      console.log('file: ' + laName + ' created');
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
-        localAudioWriter = fileWriter;
+        localAudio.writer = fileWriter;
       });
     });
-    var remoteAudioName = 'remoteAudio-' + room + '.webm';
-    fs.root.getFile(remoteAudioName, {create: true}, function(fileEntry) {
-      console.log('file: ' + remoteAudioName + ' created');
+    var raName = 'remoteAudio-' + room + '.webm';
+    fs.root.getFile(raName, {create: true}, function(fileEntry) {
+      console.log('file: ' + raName + ' created');
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
-        remoteAudioWriter = fileWriter;
+        remoteAudio.writer = fileWriter;
       });
     });
-    var remoteEventsName = 'remoteEvents-' + room + '.txt';
-    fs.root.getFile(remoteEventsName, {create: true}, function(fileEntry) {
-      console.log('file: ' + remoteEventsName + ' created');
+    var reName = 'remoteEvents-' + room + '.txt';
+    fs.root.getFile(reName, {create: true}, function(fileEntry) {
+      console.log('file: ' + reName + ' created');
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.truncate(0);
-        remoteEventsWriter = fileWriter;
+        remoteEvents.writer = fileWriter;
       });
     });
   }
@@ -727,8 +707,8 @@ function renderEvent(buf) {
   teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
   teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
 
-  if (remoteEventsQueuer) {
-    remoteEventsQueuer(buf);
+  if (remoteEvents.queuer) {
+    remoteEvents.queuer(buf);
   }
 };
 
