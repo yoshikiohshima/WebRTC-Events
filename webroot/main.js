@@ -135,10 +135,9 @@ function getRoleFromURL(url) {
 
 //var isTeacher = !!getRoleFromURL()['teacher'];
 
-// Create a random room if not already present in the URL.
+// Create a random room anytime the page is loaded
 var room;
-room = window.location.hash.substring(1);
-if (isLearner && !room) {
+if (isLearner) {
   room = window.location.hash = randomToken();
 }
 
@@ -159,7 +158,6 @@ socket.on('created', function(rm, clientId) {
 
 socket.on('full', function(rm) {
   alert('Room ' + rm + ' is full. We will create a new room for you.');
-  window.location.hash = '';
   window.location.reload();
 });
 
@@ -201,7 +199,10 @@ socket.on('peerDisconnected', function(rm) {
   if (peerConn) {
     peerConn.close();
     peerConn = null;
+    dataChannel.close();
+    dataChannel = null;
   }
+  
   if (isLearner) {
     socket.emit('newLearner', room);
   } else {
@@ -711,7 +712,9 @@ function sendEvent(evt) {
     try {
       dataChannel.send(dataTypes.event << 24 | buf.byteLength);
       dataChannel.send(buf);
-    } catch(e) {console.log('send failed', e);}
+    } catch(e) {
+      console.log('send failed', e);
+    }
   }
 };
 

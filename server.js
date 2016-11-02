@@ -91,7 +91,7 @@ function findMatchFor(pair, queue) {
       return null;
     }
     var elem = queue[0];
-    if (elem[0].connected && (elem[1] === room || elem[1] == '')) {
+    if (elem[0].connected && (elem[1] === room || !elem[1])) {
       return elem;
     } else {
       queue.shift();
