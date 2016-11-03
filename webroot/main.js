@@ -386,96 +386,47 @@ function startRecording() {
   startRecordingRemoteEvents();
 };
 
-function startRecordingCanvas() {
-  var cloned = canvas.stream.clone();
-  canvas.recorder = new MediaRecorder(cloned);
-  canvas.recorder.start();
+function startRecorindMedia(media) {
+  var cloned = media.stream.clone();
+  media.recorder = new MediaRecorder(cloned);
+  media.recorder.start();
   var targetPos;
-  canvas.recorder.ondataavailable = function handleDataAvailable(event) {
+  media.recorder.ondataavailable = function handleDataAvailable(event) {
     if (event.data.size > 0) {
-      canvas.chunks.push(event.data);
-      if (canvas.writerReady) {
-        if (!canvas.writer.onwriteend) {
-          canvas.writer.onwriteend = function(e) {
-            if (canvas.writer.length == targetPos) {
-              canvas.writerReady = true;
-              canvas.writer.seek(canvas.writer.length); // Start write position at EOF.
+      media.chunks.push(event.data);
+      if (media.writerReady) {
+        if (!media.writer.onwriteend) {
+          media.writer.onwriteend = function(e) {
+            if (media.writer.length == targetPos) {
+              media.writerReady = true;
+              media.writer.seek(media.writer.length); // Start write position at EOF.
             }
           };
-          canvas.writer.onerror = function(e) {
+          media.writer.onerror = function(e) {
            console.log('Write failed: ' + e.toString());
           };
         }
-        canvas.writerReady = false;
-        var superBuffer = new Blob(canvas.chunks, {type: 'video/webm'});
-        canvas.chunks = [];
-        targetPos = canvas.writer.length + superBuffer.size;
-        canvas.writer.write(superBuffer);
+        media.writerReady = false;
+        var superBuffer = new Blob(media.chunks, {type: 'video/webm'});
+        media.chunks = [];
+        targetPos = media.writer.length + superBuffer.size;
+        media.writer.write(superBuffer);
       }
     };
   };
 };
+
+function startRecordingCanvas() {
+  return startRecordingMedia(canvas);
+}
 
 function startRecordingAudio() {
-  var cloned = localAudio.stream.clone();
-  localAudio.recorder = new MediaRecorder(cloned);
-  localAudio.recorder.start();
-  var targetPos;
-  localAudio.recorder.ondataavailable = function handleDataAvailable(event) {
-    if (event.data.size > 0) {
-      localAudio.chunks.push(event.data);
-      if (localAudio.writerReady) {
-        if (!localAudio.writer.onwriteend) {
-          localAudio.writer.onwriteend = function(e) {
-            if (localAudio.writer.length == targetPos) {
-              localAudio.writerReady = true;
-              localAudio.writer.seek(localAudio.writer.length);
-            }
-          };
-          localAudio.writer.onerror = function(e) {
-           console.log('Write failed: ' + e.toString());
-          };
-        }
-        localAudio.writerReady = false;
-        var superBuffer = new Blob(localAudio.chunks, {type: 'audio/webm'});
-        localAudio.chunks = [];
-        targetPos = localAudio.writer.length + superBuffer.size;
-        localAudio.writer.write(superBuffer);
-      }
-    };
-  };
-};
+  return startRecordingMedia(localAudio);
+}
 
 function startRecordingRemoteAudio() {
-  if (!remoteAudio.stream) {return;}
-  var cloned = remoteAudio.stream.clone();
-  remoteAudio.recorder = new MediaRecorder(cloned);
-  remoteAudio.recorder.start();
-  var targetPos;
-  remoteAudio.recorder.ondataavailable = function handleDataAvailable(event) {
-    if (event.data.size > 0) {
-      remoteAudio.chunks.push(event.data);
-      if (remoteAudio.writerReady) {
-        if (!remoteAudio.writer.onwriteend) {
-          remoteAudio.writer.onwriteend = function(e) {
-            if (remoteAudio.writer.length == targetPos) {
-              remoteAudio.writerReady = true;
-              remoteAudio.writer.seek(remoteAudio.writer.length);
-            }
-          };
-          remoteAudio.writer.onerror = function(e) {
-           console.log('Write failed: ' + e.toString());
-          };
-        };
-        remoteAudio.writerReady = false;
-        var superBuffer = new Blob(remoteAudio.chunks, {type: 'audio/webm'});
-        remoteAudio.chunks = [];
-        targetPos = remoteAudio.writer.length + superBuffer.size;
-        remoteAudio.writer.write(superBuffer);
-      }
-    };
-  };
-};
+  return startRecordingMedia(remoteAudio);
+}
 
 function startRecordingRemoteEvents() {
   var targetPos;
