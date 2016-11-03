@@ -76,6 +76,7 @@ var localEventRecorder;
 
 var isLearner = !isTeacher;
 var learnerStartTime = Date.now();
+var recordingStartTime;
 
 var offerOptions = {
   offerToReceiveAudio: 1,
@@ -380,13 +381,14 @@ function startAudio() {
 };
 
 function startRecording() {
-  startRecordingCanvas();
-  startRecordingAudio();
-  startRecordingRemoteAudio();
+  recordingStartTime = Date.now();
+  startRecordingMedia(canvas);
+  startRecordingMedia(localAudio);
+  startRecordingMedia(remoteAudio);
   startRecordingRemoteEvents();
 };
 
-function startRecorindMedia(media) {
+function startRecordingMedia(media) {
   var cloned = media.stream.clone();
   media.recorder = new MediaRecorder(cloned);
   media.recorder.start();
