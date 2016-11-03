@@ -48,7 +48,6 @@ var configuration = null;
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
 var teacherCursor = document.getElementById('cursor');
-console.log('canvasName: ' + canvasName);
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var sqContextW = 1200;
 var sqContextH = 900;
@@ -64,6 +63,7 @@ function Media() {
   this.writer = null;
   this.writerReady = true;
   this.chunks = [];
+  this.fileName = '';
 };
 
 var canvas = new Media();
@@ -71,6 +71,8 @@ var localAudio = new Media();
 var remoteAudio = new Media();
 var remoteEvents = new Media();
 var localEvents = new Media();
+
+var mixedAudio = new Media();
 
 var localEventRecorder;
 
@@ -384,11 +386,15 @@ function startRecording() {
   recordingStartTime = Date.now();
   startRecordingMedia(canvas);
   startRecordingMedia(localAudio);
-  startRecordingMedia(remoteAudio);
   startRecordingRemoteEvents();
+  startRecordingMedia(remoteAudio);
 };
 
 function startRecordingMedia(media) {
+  if (!media.stream) {return;}
+  if (media === mixedAudio) {
+    debugger;
+  }
   var cloned = media.stream.clone();
   media.recorder = new MediaRecorder(cloned);
   media.recorder.start();
@@ -458,33 +464,6 @@ function startRecordingRemoteEvents() {
   };
 };
 
-/*function saveCanvas() {
-  if (fs) {
-    var name = 'canvas-' + room + '.webm';
-    console.log('getting file: ' + name);
-    fs.root.getFile(name, {create: false}, function(fileEntry) {
-      fileEntry.file(function(file) {
-        var reader = new FileReader();
-        reader.onloadend = function(e) {
-          console.log('onloadend', e, reader.result);
-          var blob = new Blob([reader.result], {type: 'video/webm'});
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a');
-          document.body.appendChild(a);
-          a.style = 'display: none';
-          a.href = url;
-          a.download = name;
-          a.click();
-          window.URL.revokeObjectURL(url);
-        };
-        console.log('getting file');
-        reader.readAsArrayBuffer(file);
-      });
-    });
-  };
-};
-*/
-
 function getGetUserMedia() {
   // Note: Opera builds are unprefixed.
   return navigator.getUserMedia || navigator.webkitGetUserMedia ||
@@ -492,42 +471,46 @@ function getGetUserMedia() {
 };
 
 function saveFiles() {
-  saveRemoteEvents();
+  saveCanvas();
   saveLocalAudio();
   saveRemoteAudio();
-  saveCanvas();
+  saveRemoteEvents();
+  saveMixedAudio();
 };
 
 function saveRemoteEvents() {
-  return saveFile('remoteEvents-' + room + '.txt', 'text/plain');
+  return saveFile(remoteEvents, 'text/plain');
 };
 
 function saveLocalAudio() {
-  return saveFile('localAudio-' + room + '.webm', 'audio/webm');
+  return saveFile(localAudio, 'audio/webm');
 };
 
 function saveRemoteAudio() {
-  return saveFile('remoteAudio-' + room + '.webm', 'audio/webm');
+  return saveFile(remoteAudio, 'audio/webm');
 };
 
 function saveCanvas() {
-  return saveFile('canvas-' + room + '.webm', 'video/webm');
+  return saveFile(canvas, 'video/webm');
 };
 
-function saveFile(name, type) {
+function saveMixedAudio() {
+  return saveFile(mixedAudio, 'audio/webm');
+};
+
+function saveFile(media, type) {
   if (fs) {
-    fs.root.getFile(name, {create: false}, function(fileEntry) {
+    fs.root.getFile(media.fileName, {create: false}, function(fileEntry) {
       fileEntry.file(function(file) {
         var reader = new FileReader();
         reader.onloadend = function(e) {
-          console.log('onloadend', e, reader.result);
           var blob = new Blob([reader.result], {type: type});
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
           document.body.appendChild(a);
           a.style = 'display: none';
           a.href = url;
-          a.download = name;
+          a.download = media.fileName;
           a.click();
           window.URL.revokeObjectURL(url);
         };
@@ -544,40 +527,22 @@ function fsErrorHandler(e) {
 function setupFileSystem() {
   var success = function(files) {
     fs = files;
-    var cName = 'canvas-' + room + '.webm';
-    fs.root.getFile(cName, {create: true}, function(fileEntry) {
-      console.log('file: ' + cName + ' created');
-      fileEntry.createWriter(function(fileWriter) {
-        fileWriter.truncate(0);
-        canvas.writer = fileWriter;
-      });
+    [
+      [canvas, 'canvas-' + room + '.webm'],
+      [localAudio, 'localAudio-' + room + '.webm'],
+      [remoteAudio, 'remoteAudio-' + room + '.webm'],
+      [mixedAudio, 'mixedAudio-' + room + '.webm'],
+      [remoteEvents, 'remoteEvents-' + room + '.txt']].forEach(function(pair) {
+        pair[0].fileName = pair[1];
+        fs.root.getFile(pair[1], {create: true}, function(fileEntry) {
+          console.log('file: ' + pair[1] + ' created');
+          fileEntry.createWriter(function(fileWriter) {
+          fileWriter.truncate(0);
+          pair[0].writer = fileWriter;
+        });
+      }); 
     });
-
-    var laName = 'localAudio-' + room + '.webm';
-    fs.root.getFile(laName, {create: true}, function(fileEntry) {
-      console.log('file: ' + laName + ' created');
-      fileEntry.createWriter(function(fileWriter) {
-        fileWriter.truncate(0);
-        localAudio.writer = fileWriter;
-      });
-    });
-    var raName = 'remoteAudio-' + room + '.webm';
-    fs.root.getFile(raName, {create: true}, function(fileEntry) {
-      console.log('file: ' + raName + ' created');
-      fileEntry.createWriter(function(fileWriter) {
-        fileWriter.truncate(0);
-        remoteAudio.writer = fileWriter;
-      });
-    });
-    var reName = 'remoteEvents-' + room + '.txt';
-    fs.root.getFile(reName, {create: true}, function(fileEntry) {
-      console.log('file: ' + reName + ' created');
-      fileEntry.createWriter(function(fileWriter) {
-        fileWriter.truncate(0);
-        remoteEvents.writer = fileWriter;
-      });
-    });
-  }
+  };
   window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024 * 2, success, fsErrorHandler);
 };
 
@@ -723,11 +688,26 @@ function renderImage(data) {
   context.putImageData(img, 0, 0);
 }
 
-/*function audioMixer() {
+function setupAudioMixer() {
   var cxt = new AudioContext();
-  if (localAudioStream && remoteAudioStream) {
-    var c1 = cxt.createMediaStreamSource(localAudioStream);
-    var c2 = cxt.createMediaStreamSource(remoteAudioStream);
-    var dest = cxt.createMediaStreamDestination(remoteAudioStream);
+  if (localAudio.stream && remoteAudio.stream) {
+
+    var c1 = cxt.createMediaStreamSource(localAudio.stream.clone());
+    var c2 = cxt.createMediaStreamSource(remoteAudio.stream.clone());
+    var dest = cxt.createMediaStreamDestination();
+    var merger = cxt.createChannelMerger(1);
+    c1.connect(merger, 0, 0);
+    c2.connect(merger, 0, 1);
+    merger.connect(dest);
+    mixedAudio.stream = dest.stream;
   }
-}*/
+}
+
+function startRecordingMixedAudio() {
+  setupAudioMixer();
+  return startRecordingMedia(mixedAudio);
+}
+
+//startRecordingMedia(mergedAudio);
+
+
