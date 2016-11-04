@@ -1,34 +1,10 @@
 'use strict';
 
 /*
-  startAudio();
-  startCanvas();
-
-*/
-
-/* learner sets up a room.  Learner can have hash to make a room.
-   When teacher joins, either the specified room or a first one will be matched.
-
-  learner should have a hash from the beginning to support file names of saved files.
-
-  initiator is learner
-
-  disconnect and then reconnect is not handled.  The way it should work is that the learner keeps its room on the server.
-
-  There are two modes of disconnection; one is the learner loses socket connection to the server, and the other is to the peer.  The server case is not critical, as long as it can keep the peer, but then when the peer is also lost, the teacher may need to rejoin.  When the teacher keeps the room id, it should be possible.
-
-
-  The server needs to maintain the list of active learners to allow reconnect.  When a learner disconnected from the server, the learner keeps the room id. upon learner's reconnect, it is added back to the active learners.
 
   Now there may be a 'full' case. Actually there are two full cases.  when two learners try to use the same room id, and when two teachers try to server the same learner.
 
-
-
-
-
   saving with timestamp... but how do we ensure synchronization?
-
-  
 */
   
 
@@ -54,6 +30,7 @@ var sqContextH = 900;
 if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
 };
+appName = appName || 'Squeak';
 
 var fs;
 
@@ -171,9 +148,9 @@ socket.on('message', function(message) {
 socket.on('reconnect', function(message) {
   console.log('Client reconnected:', message);
   if (isLearner) {
-    socket.emit('newLearner', room);
+    socket.emit('newLearner', room, appName);
   } else {
-    socket.emit('newTeacher', room);
+    socket.emit('newTeacher', room, appName);
   }
 });
 
@@ -189,14 +166,14 @@ socket.on('peerDisconnected', function(rm) {
   }
   
   if (isLearner) {
-    socket.emit('newLearner', room);
+    socket.emit('newLearner', room, appName);
   } else {
-    socket.emit('newTeacher', room);
+    socket.emit('newTeacher', room, appName);
   }
 });
 
-function dump() {
-  socket.emit('dump');
+function dump(appName) {
+  socket.emit('dump', appName);
 }
 
 function init() {
@@ -204,10 +181,10 @@ function init() {
     setupFileSystem();
     startCanvas();
     startAudio();
-    socket.emit('newLearner', room);
+    socket.emit('newLearner', room, appName);
   } else {
     startAudio();
-    socket.emit('newTeacher', room);
+    socket.emit('newTeacher', room, appName);
   }
 };
 
