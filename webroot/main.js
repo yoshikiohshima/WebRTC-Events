@@ -220,9 +220,9 @@ if (location.hostname.match(/localhost|127\.0\.0/)) {
 /**
 * Send message to signaling server
 */
-function sendMessage(message) {
+function sendMessage(message, room) {
   console.log('Client sending message: ', message);
-  socket.emit('message', message);
+  socket.emit('message', message, room);
 }
 
 /**
@@ -281,7 +281,7 @@ function createPeerConnection(isInitiator, config) {
         label: event.candidate.sdpMLineIndex,
         id: event.candidate.sdpMid,
         candidate: event.candidate.candidate
-      });
+      }, room);
     } else {
       console.log('End of candidates.');
     }
@@ -346,7 +346,7 @@ function onLocalSessionCreated(desc) {
   console.log('local session created:', desc);
   peerConn.setLocalDescription(desc, function() {
     console.log('sending local desc:', peerConn.localDescription);
-    sendMessage(peerConn.localDescription);
+    sendMessage(peerConn.localDescription, room);
   }, logError);
 }
 
@@ -695,7 +695,7 @@ function setupAudioMixer() {
     var c1 = cxt.createMediaStreamSource(localAudio.stream.clone());
     var c2 = cxt.createMediaStreamSource(remoteAudio.stream.clone());
     var dest = cxt.createMediaStreamDestination();
-    var merger = cxt.createChannelMerger(1);
+    var merger = cxt.createChannelMerger(2);
     c1.connect(merger, 0, 0);
     c2.connect(merger, 0, 1);
     merger.connect(dest);

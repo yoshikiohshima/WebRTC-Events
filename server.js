@@ -7,22 +7,22 @@ var fileServer = new(nodeStatic.Server)('webroot');
 var socketIO = require('socket.io');
 
 if (process.argv.length > 2) {
-  var server = require('https');
+  var http = require('https');
   var serverOptions = {
     key: fs.readFileSync('privkey1.pem'),
     cert: fs.readFileSync('cert1.pem')
   };
-  var app = server.createServer(serverOptions, function(req, res) {
+  var server = http.createServer(serverOptions, function(req, res) {
     fileServer.serve(req, res);
   });
 } else {
-  var server = require('http');
-  var app = server.createServer(function(req, res) {
+  var http = require('http');
+  var server = http.createServer(function(req, res) {
     fileServer.serve(req, res);
   });
 }
 
-app.listen(8080);
+server.listen(8080);
 
 var teachersQueue = [];
 var learnersQueue = [];
@@ -120,7 +120,7 @@ function maybeStart() {
   console.log('end of maybeStart()');
 }
 
-var io = socketIO.listen(app);
+var io = socketIO.listen(server);
 io.sockets.on('connection', function(socket) {
   console.log('connected: ' + socket.id);
 
@@ -131,10 +131,11 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
 
-  socket.on('message', function(message) {
-    log('Client said: ', message);
-    // for a real app, would be room-only (not broadcast)
-    socket.broadcast.emit('message', message);
+  socket.on('message', function(message, room) {
+    log('Client said: ', message, room);
+    io.sockets.in(room).emit('message', message);
+//    // for a real app, would be room-only (not broadcast)
+//    socket.broadcast.emit('message', message);
   });
 
   socket.on('newTeacher', function(room) {
