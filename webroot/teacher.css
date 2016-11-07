@@ -10,10 +10,6 @@ html {
     margin: 0;
 }
 
-#aCanvas {
-  position: relative;
-}
-
 canvas.pixelated {
     image-rendering: -moz-crisp-edges;
     image-rendering: -webkit-optimize-contrast;

@@ -647,13 +647,17 @@ function encodeEvent(evt) {
 }
 
 function receiveEvent(buf) {
-  var left = 0, top = 0;
+  var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
   if (sqCanvas) {
     left = sqCanvas.offsetLeft;
     top = sqCanvas.offsetTop;
+    scale = sqCanvas.getBoundingClientRect().width / sqCanvas.width;
   }
-  teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
-  teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
+  offX = teacherCursor.getBoundingClientRect().width / 2;
+  offY = teacherCursor.getBoundingClientRect().height / 2;
+
+  teacherCursor.style.left = (((buf[1] * scale) + left - offX).toString() + 'px');
+  teacherCursor.style.top = (((buf[2] * scale) + top - offY).toString() + 'px');
 
   if (remoteEvents.queuer) {
     remoteEvents.queuer(buf);
@@ -720,8 +724,9 @@ function receiveCanvasSize(data) {
   var h = data[1];
   console.log("w, h = " + w + ", " + h);
   if (appName == "Snap") {
-    document.getElementById("videoCanvas").style.width = w;
-    document.getElementById("videoCanvas").style.height = h;
+    console.log(videoCanvas);
+    videoCanvas.style.width = w;
+    videoCanvas.style.height = h;
   }
 };
 
