@@ -25,12 +25,14 @@ var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
 var teacherCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
-var sqContextW = 1200;
-var sqContextH = 900;
+var lastCanvasWidth = -1;
+var lastCanvasHeight = -1;
+var canvasSizeTimer;
+
 if (sqCanvas) {
   var sqContext = sqCanvas.getContext('2d');
 };
-appName = appName || 'Squeak';
+appName = appName || 'Etoys';
 
 var fs;
 
@@ -270,7 +272,6 @@ function createPeerConnection(isInitiator, config) {
 
   if (!isInitiator) {
     peerConn.ondatachannel = function(event) {
-      console.log('ondatachannel:', event.channel);
       dataChannel = event.channel;
       onDataChannelCreated(dataChannel, isInitiator);
     };
@@ -334,14 +335,14 @@ function onDataChannelCreated(channel, isInitiator) {
     console.log('CHANNEL opened!!!');
     if (isInitiator) {
       peerConn.onnegotiationneeded = function() {
-        console.log('negatiate');
         socket.emit('renegotiate', room);
       }
+      canvasSizeTimer = setInterval(sendCanvasSize, 1000);
     };
   };
 
   channel.onmessage = (adapter.browserDetails.browser === 'firefox') ?
-  receiveDataFirefoxFactory() : receiveDataChromeFactory();
+    receiveDataFirefoxFactory() : receiveDataChromeFactory();
 };
 
 function startCanvas() {
@@ -441,6 +442,26 @@ function startRecordingRemoteEvents() {
   };
 };
 
+function setupAudioMixer() {
+  var cxt = new AudioContext();
+  if (localAudio.stream && remoteAudio.stream) {
+
+    var c1 = cxt.createMediaStreamSource(localAudio.stream.clone());
+    var c2 = cxt.createMediaStreamSource(remoteAudio.stream.clone());
+    var dest = cxt.createMediaStreamDestination();
+    var merger = cxt.createChannelMerger(2);
+    c1.connect(merger, 0, 0);
+    c2.connect(merger, 0, 1);
+    merger.connect(dest);
+    mixedAudio.stream = dest.stream;
+  }
+}
+
+function startRecordingMixedAudio() {
+  setupAudioMixer();
+  return startRecordingMedia(mixedAudio);
+}
+
 function getGetUserMedia() {
   // Note: Opera builds are unprefixed.
   return navigator.getUserMedia || navigator.webkitGetUserMedia ||
@@ -533,11 +554,12 @@ function receiveDataChromeFactory() {
       var len = payload & 0xFFFFFF;
       if (type == dataTypes.event) {
         //console.log('expecting an event.');
-        //renderEvent(buf);
       } else if (type == dataTypes.image) {
         buf = window.buf = new Uint8ClampedArray(len);
         count = 0;
         console.log('Expecting a total of ' + buf.byteLength + ' bytes');
+      } else if (type == dataTypes.canvasSize) {
+        //console.log('expecting a canvas size spec.');
       } else {
 	console.log('unknown type');
       }
@@ -545,9 +567,9 @@ function receiveDataChromeFactory() {
     }
 
     if (type == dataTypes.event) {
-      // assuming this 12 bytes data won't get split during the transimission
+      // assuming this 12 bytes data won't get split during transimission
       buf = new Uint32Array(event.data);
-      renderEvent(buf);
+      receiveEvent(buf);
       buf = null;
       type = null;
     } else if (type == dataTypes.image) {
@@ -559,27 +581,40 @@ function receiveDataChromeFactory() {
       if (count === buf.byteLength) {
         // we're done: all data chunks have been received
         console.log('Done. Rendering image.');
-        renderImage(buf);
+        receiveImage(buf);
       }
+    } else if (type == dataTypes.canvasSize) {
+      // assuming this 8 bytes data won't get split during transimission
+      buf = new Uint32Array(event.data);
+      receiveCanvasSize(buf);
+      buf = null;
+      type = null;
     }
   }
-}
+};
 
 function receiveDataFirefoxFactory() {
   return function onmessage(event) {
     var buf = new Uint32Array(event.data);
     console.log('Done. Rendering event.');
-    renderEvent(buf);
+    receiveEvent(buf);
   };
-}
-
+};
 
 /****************************************************************************
 * Aux functions, mostly UI-related
 ****************************************************************************/
 
 var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove: 4};
-var dataTypes = {image: 0, event: 1};
+var dataTypes = {image: 0, event: 1, canvasSize: 2};
+
+function randomToken() {
+  return Math.floor((1 + Math.random()) * 1e16).toString(16).substring(1);
+}
+
+function logError(err) {
+  console.log(err.toString(), err);
+}
 
 function sendEvent(evt) {
   if (dataChannel) {
@@ -592,28 +627,6 @@ function sendEvent(evt) {
     }
   }
 };
-
-function renderEvent(buf) {
-  var left = 0, top = 0;
-  if (sqCanvas) {
-    left = sqCanvas.offsetLeft;
-    top = sqCanvas.offsetTop;
-  }
-  teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
-  teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
-
-  if (remoteEvents.queuer) {
-    remoteEvents.queuer(buf);
-  }
-};
-
-function randomToken() {
-  return Math.floor((1 + Math.random()) * 1e16).toString(16).substring(1);
-}
-
-function logError(err) {
-  console.log(err.toString(), err);
-}
 
 function encodeEvent(evt) {
    var left = 0, top = 0;
@@ -633,58 +646,79 @@ function encodeEvent(evt) {
    return v.buffer;
 }
 
-function sendImage() {
-  // Split data channel message in chunks of this byte length.
-  var CHUNK_LEN = 64000;
-  console.log('width and height ', sqContextW, sqContextH);
-  var img = sqContext.getImageData(0, 0, sqContextW, sqContextH),
-  len = img.data.byteLength,
-  n = len / CHUNK_LEN | 0;
-
-  console.log('Sending a total of ' + len + ' byte(s) of type ');
-  dataChannel.send(dataTypes.image << 24 | len);
-
-  // split the photo and send in chunks of about 64KB
-  for (var i = 0; i < n; i++) {
-    var start = i * CHUNK_LEN,
-    end = (i + 1) * CHUNK_LEN;
-    dataChannel.send(img.data.subarray(start, end));
+function receiveEvent(buf) {
+  var left = 0, top = 0;
+  if (sqCanvas) {
+    left = sqCanvas.offsetLeft;
+    top = sqCanvas.offsetTop;
   }
+  teacherCursor.style.left = ((buf[1] + left).toString() + 'px');
+  teacherCursor.style.top = ((buf[2] + top).toString() + 'px');
 
-  // send the reminder, if any
-  if (len % CHUNK_LEN) {
-    console.log('last ' + len % CHUNK_LEN + ' byte(s)');
-    dataChannel.send(img.data.subarray(n * CHUNK_LEN));
+  if (remoteEvents.queuer) {
+    remoteEvents.queuer(buf);
   }
-}
+};
 
-function renderImage(data) {
+function sendCanvasSize() {
+  if (dataChannel) {
+    var nowW = sqCanvas.width;
+    var nowH = sqCanvas.height;
+    if (nowW == lastCanvasWidth &&
+        nowH == lastCanvasHeight) {
+      return;
+    }
+    var buf = new Uint32Array(2);
+    buf[0] = nowW;
+    buf[1] = nowH;
+    try {
+      dataChannel.send(dataTypes.canvasSize << 24 | buf.byteLength);
+      dataChannel.send(buf);
+    } catch(e) {
+      console.log('send failed', e);
+      return;
+    }
+    lastCanvasWidth = nowW;
+    lastCanvasHeight = nowH;
+  }
+};
+
+// function sendImage() {
+//   // Split data channel message in chunks of this byte length.
+//   var CHUNK_LEN = 64000;
+//   console.log('width and height ', sqContextW, sqContextH);
+//   var img = sqContext.getImageData(0, 0, sqContextW, sqContextH),
+//   len = img.data.byteLength,
+//   n = len / CHUNK_LEN | 0;
+
+//   console.log('Sending a total of ' + len + ' byte(s) of type ');
+//   dataChannel.send(dataTypes.image << 24 | len);
+
+//   // split the photo and send in chunks of about 64KB
+//   for (var i = 0; i < n; i++) {
+//     var start = i * CHUNK_LEN,
+//     end = (i + 1) * CHUNK_LEN;
+//     dataChannel.send(img.data.subarray(start, end));
+//   }
+
+//   // send the reminder, if any
+//   if (len % CHUNK_LEN) {
+//     console.log('last ' + len % CHUNK_LEN + ' byte(s)');
+//     dataChannel.send(img.data.subarray(n * CHUNK_LEN));
+//   }
+// }
+
+function receiveImage(data) {
   var context = videoCanvas.getContext('2d');
   var img = context.createImageData(sqContextW, sqContextH);
   img.data.set(data);
   context.putImageData(img, 0, 0);
-}
+};
 
-function setupAudioMixer() {
-  var cxt = new AudioContext();
-  if (localAudio.stream && remoteAudio.stream) {
-
-    var c1 = cxt.createMediaStreamSource(localAudio.stream.clone());
-    var c2 = cxt.createMediaStreamSource(remoteAudio.stream.clone());
-    var dest = cxt.createMediaStreamDestination();
-    var merger = cxt.createChannelMerger(2);
-    c1.connect(merger, 0, 0);
-    c2.connect(merger, 0, 1);
-    merger.connect(dest);
-    mixedAudio.stream = dest.stream;
-  }
-}
-
-function startRecordingMixedAudio() {
-  setupAudioMixer();
-  return startRecordingMedia(mixedAudio);
-}
+function receiveCanvasSize(data) {
+  var w = data[0];
+  var h = data[1];
+  console.log("w, h = " + w + ", " + h);
+};
 
 //startRecordingMedia(mergedAudio);
-
-
