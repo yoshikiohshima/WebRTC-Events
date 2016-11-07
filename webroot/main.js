@@ -12,14 +12,14 @@
 * Initial setup
 ****************************************************************************/
 
-var configuration = {
-   'iceServers': [{
-     'url': 'stun:stun.l.google.com:19302'
-   }]
- };
+//var configuration = {
+//   'iceServers': [{
+//     'url': 'stun:stun.l.google.com:19302'
+//   }]
+// };
 // {'url':'stun:stun.services.mozilla.com'}
 
-//var configuration = null;
+var configuration = null;
 
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
@@ -719,6 +719,10 @@ function receiveCanvasSize(data) {
   var w = data[0];
   var h = data[1];
   console.log("w, h = " + w + ", " + h);
+  if (appName == "Snap") {
+    document.getElementById("videoCanvas").style.width = w;
+    document.getElementById("videoCanvas").style.height = h;
+  }
 };
 
 //startRecordingMedia(mergedAudio);

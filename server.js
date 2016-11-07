@@ -106,6 +106,7 @@ function findMatchFor(pair, queue) {
       return null;
     }
     var elem = queue[0];
+    console.log('elem: ' + elem[0].connected);
     if (elem[0].connected && (elem[1] === room || !elem[1])) {
       return elem;
     } else {
@@ -226,6 +227,7 @@ io.sockets.on('connection', function(socket) {
     if (appName) {
       var app = apps[appName];
       if (app) {
+        console.log('app: ' + appName);
         console.log(app.learners);
         console.log(app.learnersQueue);
         console.log(app.teachersQueue);
@@ -234,6 +236,7 @@ io.sockets.on('connection', function(socket) {
       for (var k in apps) {
         var app = apps[k];
         if (app) {
+          console.log('app: ' + k);
           console.log(app.learners);
           console.log(app.learnersQueue);
           console.log(app.teachersQueue);
