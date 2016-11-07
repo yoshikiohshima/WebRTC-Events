@@ -629,10 +629,14 @@ function sendEvent(evt) {
 };
 
 function encodeEvent(evt) {
-   var left = 0, top = 0;
+   var left = 0, top = 0, scale = 1;
    if (videoCanvas) {
-     left = videoCanvas.offsetLeft;
-     top = videoCanvas.offsetTop;
+     var rect = videoCanvas.getBoundingClientRect();
+     left = rect.left;
+     top = rect.top;
+     if (lastCanvasWidth > 0) {
+       scale = lastCanvasWidth / rect.width;
+     }
    }
    var v = new Uint32Array(3);
    var type = evt.type;
@@ -640,8 +644,8 @@ function encodeEvent(evt) {
    if (v[0] <= 1) {
      v[1] = evt.keyCode;
    } else {
-     v[1] = evt.clientX - left;
-     v[2] = evt.clientY - top;
+     v[1] = (evt.clientX - left) * scale;
+     v[2] = (evt.clientY - top) * scale;
    }
    return v.buffer;
 }
@@ -723,11 +727,10 @@ function receiveCanvasSize(data) {
   var w = data[0];
   var h = data[1];
   console.log("w, h = " + w + ", " + h);
-  if (appName == "Snap") {
-    console.log(videoCanvas);
-    videoCanvas.style.width = w;
-    videoCanvas.style.height = h;
-  }
+  lastCanvasWidth = w;
+  lastCanvasHeight = h;
+  videoCanvas.style.width = (w.toString() + 'px');
+  videoCanvas.style.height = (h.toString() + 'px');
 };
 
 //startRecordingMedia(mergedAudio);
