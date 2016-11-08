@@ -25,8 +25,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
 <link rel="stylesheet" href="teacher.css">
-<script src="SqueakJS/squeak.js"></script>
-<script src="SqueakJS/demo/SimplePlugin.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="lib/adapter.js"></script>
 
@@ -42,6 +40,7 @@ THE SOFTWARE.
     <video id="videoCanvas" autoplay></video>
     <div id="sqSpinner"><div></div></div>
     <audio id="audio" control autoplay></audio>
+    <div id="cursor">X</div>
 <script>
   isTeacher = true;
   canvasName = "sqCanvas";

@@ -191,12 +191,10 @@ io.sockets.on('connection', function(socket) {
     learners = {};
   });
 
-socket.on('dump', function() {
-  console.log('dump');
-  console.log(learners);
-  console.log(learnersQueue);
-  console.log(teachersQueue);
-});
-
-
+  socket.on('dump', function() {
+    console.log('dump');
+    console.log(learners);
+    console.log(learnersQueue);
+    console.log(teachersQueue);
+  });
 });

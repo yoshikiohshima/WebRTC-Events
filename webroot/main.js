@@ -21,9 +21,10 @@ var configuration = {
 
 //var configuration = null;
 
+var room;
 var videoCanvas = document.getElementById('videoCanvas');
 var audio = document.getElementById('audio');
-var teacherCursor = document.getElementById('cursor');
+var remoteCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var lastCanvasWidth = -1;
 var lastCanvasHeight = -1;
@@ -52,8 +53,6 @@ var remoteEvents = new Media();
 var localEvents = new Media();
 
 var mixedAudio = new Media();
-
-var localEventRecorder;
 
 var isLearner = !isTeacher;
 var learnerStartTime = Date.now();
@@ -100,7 +99,6 @@ function getRoleFromURL(url) {
 //var isTeacher = !!getRoleFromURL()['teacher'];
 
 // Create a random room anytime the page is loaded
-var room;
 if (isLearner) {
   room = window.location.hash = randomToken();
 }
@@ -174,9 +172,18 @@ socket.on('peerDisconnected', function(rm) {
   }
 });
 
+function sendMessage(message, room) {
+  console.log('Client sending message: ', message);
+  socket.emit('message', message, room);
+}
+
 function dump(appName) {
   socket.emit('dump', appName);
 }
+
+/****************************************************************************
+* Client Initialization
+****************************************************************************/
 
 function init() {
   if (isLearner) {
@@ -194,15 +201,7 @@ init();
 
 if (location.hostname.match(/localhost|127\.0\.0/)) {
   socket.emit('ipaddr');
-}
-
-/**
-* Send message to signaling server
-*/
-function sendMessage(message, room) {
-  console.log('Client sending message: ', message);
-  socket.emit('message', message, room);
-}
+};
 
 /**
 * Updates URL on the page so that users can copy&paste it to their peers.
@@ -338,6 +337,7 @@ function onDataChannelCreated(channel, isInitiator) {
         socket.emit('renegotiate', room);
       }
       canvasSizeTimer = setInterval(sendCanvasSize, 1000);
+      sqSendEvent = sendEvent;
     };
   };
 
@@ -469,32 +469,32 @@ function getGetUserMedia() {
 };
 
 function saveFiles() {
-  saveCanvas();
-  saveLocalAudio();
-  saveRemoteAudio();
-  saveRemoteEvents();
-  saveMixedAudio();
+  saveFile(canvas, 'video/webm');
+  saveFile(localAudio, 'audio/webm');
+  saveFile(remoteAudio, 'audio/webm');
+  saveFile(remoteEvents, 'text/plain');
+  saveFile(mixedAudio, 'audio/webm');
 };
 
-function saveRemoteEvents() {
-  return saveFile(remoteEvents, 'text/plain');
-};
+// function saveRemoteEvents() {
+//   return saveFile(remoteEvents, 'text/plain');
+// };
 
-function saveLocalAudio() {
-  return saveFile(localAudio, 'audio/webm');
-};
+// function saveLocalAudio() {
+//   return saveFile(localAudio, 'audio/webm');
+// };
 
-function saveRemoteAudio() {
-  return saveFile(remoteAudio, 'audio/webm');
-};
+// function saveRemoteAudio() {
+//   return saveFile(remoteAudio, 'audio/webm');
+// };
 
-function saveCanvas() {
-  return saveFile(canvas, 'video/webm');
-};
+// function saveCanvas() {
+//   return saveFile(canvas, 'video/webm');
+// };
 
-function saveMixedAudio() {
-  return saveFile(mixedAudio, 'audio/webm');
-};
+// function saveMixedAudio() {
+//   return saveFile(mixedAudio, 'audio/webm');
+// };
 
 function saveFile(media, type) {
   if (fs) {
@@ -630,14 +630,22 @@ function sendEvent(evt) {
 
 function encodeEvent(evt) {
    var left = 0, top = 0, scale = 1;
-   if (videoCanvas) {
+   if (isTeacher && videoCanvas) {
      var rect = videoCanvas.getBoundingClientRect();
      left = rect.left;
      top = rect.top;
      if (lastCanvasWidth > 0) {
        scale = lastCanvasWidth / rect.width;
      }
+   } else if (isLearner && sqCanvas) {
+     var rect = sqCanvas.getBoundingClientRect();
+     left = rect.left;
+     top = rect.top;
+     if (lastCanvasWidth > 0) {
+       scale = lastCanvasWidth / rect.width;
+     }
    }
+
    var v = new Uint32Array(3);
    var type = evt.type;
    v[0] = eventTypes[type];
@@ -653,15 +661,22 @@ function encodeEvent(evt) {
 function receiveEvent(buf) {
   var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
   if (sqCanvas) {
-    left = sqCanvas.offsetLeft;
-    top = sqCanvas.offsetTop;
-    scale = sqCanvas.getBoundingClientRect().width / sqCanvas.width;
+    var rect = sqCanvas.getBoundingClientRect();
+    left = rect.left;
+    top = rect.top.offsetTop;
+    scale = rect.width / sqCanvas.width;
+  } else if (videoCanvas) {
+    var rect = videoCanvas.getBoundingClientRect();
+    left = rect.left;
+    top = rect.top;
+    scale = rect.width / lastCanvasWidth;
   }
-  offX = teacherCursor.getBoundingClientRect().width / 2;
-  offY = teacherCursor.getBoundingClientRect().height / 2;
 
-  teacherCursor.style.left = (((buf[1] * scale) + left - offX).toString() + 'px');
-  teacherCursor.style.top = (((buf[2] * scale) + top - offY).toString() + 'px');
+  offX = remoteCursor.getBoundingClientRect().width / 2;
+  offY = remoteCursor.getBoundingClientRect().height / 2;
+
+  remoteCursor.style.left = (((buf[1] * scale) + left - offX).toString() + 'px');
+  remoteCursor.style.top = (((buf[2] * scale) + top - offY).toString() + 'px');
 
   if (remoteEvents.queuer) {
     remoteEvents.queuer(buf);
