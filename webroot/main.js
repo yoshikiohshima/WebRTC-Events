@@ -432,7 +432,12 @@ function startRecordingRemoteEvents() {
       };
       remoteEvents.writerReady = false;
       var textBuffer = remoteEvents.chunks.map(function(pair) {
-        return pair[0][0].toString() + ',' + pair[0][1].toString() + ',' + pair[0][2].toString() + ',' + pair[1].toString() + '\n';
+        var e = "";
+        for (var i = 0; i < pair[0].length; i++) {
+          e = e + pair[0][i].toString() + ",";
+        }
+        e = e + pair[1].toString() + '\n';
+        return e;
       });
       var superBuffer = new Blob(textBuffer, {type: 'text/plain'});
       remoteEvents.chunks = [];
@@ -626,6 +631,9 @@ function sendEvent(evt) {
       console.log('send failed', e);
     }
   }
+  if (localEvents.queuer) {
+    localEvents.queuer(buf);
+  }
 };
 
 function encodeEvent(evt) {
@@ -663,7 +671,7 @@ function receiveEvent(buf) {
   if (sqCanvas) {
     var rect = sqCanvas.getBoundingClientRect();
     left = rect.left;
-    top = rect.top.offsetTop;
+    top = rect.top;
     scale = rect.width / sqCanvas.width;
   } else if (videoCanvas) {
     var rect = videoCanvas.getBoundingClientRect();
@@ -675,10 +683,19 @@ function receiveEvent(buf) {
   offX = remoteCursor.getBoundingClientRect().width / 2;
   offY = remoteCursor.getBoundingClientRect().height / 2;
 
-  remoteCursor.style.left = (((buf[1] * scale) + left - offX).toString() + 'px');
-  remoteCursor.style.top = (((buf[2] * scale) + top - offY).toString() + 'px');
+  var posX = (buf[1] * scale) + left - offX;
+  var posY = (buf[2] * scale) + top - offY;
+
+  remoteCursor.style.left = posX.toString() + 'px';
+  remoteCursor.style.top = posY.toString() + 'px';
 
   if (remoteEvents.queuer) {
+    var t = v[0];
+    if (type <= 1) {
+      var buf = [t, buf[1]];
+    } else {
+      var buf = [t, posX, posY];
+    }
     remoteEvents.queuer(buf);
   }
 };

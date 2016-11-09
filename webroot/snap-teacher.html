@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+<link rel="stylesheet" href="teacher.css">
 <script src="/socket.io/socket.io.js"></script>
 <script src="../lib/adapter.js"></script>
 
@@ -9,6 +10,7 @@
     <video id="videoCanvas" autoplay></video>
     <div id="sqSpinner"><div></div></div>
     <audio id="audio" control autoplay></audio>
+    <div id="cursor">X</div>
     <button id="resetButton">Reset Server</button>
 <script>
   isTeacher = true;
