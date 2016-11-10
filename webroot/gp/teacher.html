@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Browser GP (Teacher)</title>
+<script src="/socket.io/socket.io.js"></script>
+<script src="../lib/adapter.js"></script>
+<style>
+  div#cursor {
+    position: absolute;
+  }
+</style>
+</head>
+<body>
+    <video id="videoCanvas" autoplay></video>
+    <audio id="audio" control autoplay></audio>
+    <div id="cursor">X</div>
+    <button id="resetButton">Reset Server</button>
+<script>
+  isTeacher = true;
+  canvasName = "canvas";
+  appName = "GP";
+</script>
+<script src="../main.js"></script>
+<script>
+  document.addEventListener('keydown', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('keyup', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousedown', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousemove', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mouseup', function(evt) {sendEvent(evt);}, false);
+
+  document.getElementById('resetButton').addEventListener("click", function() {
+    if (socket && socket.connected) {
+      socket.emit('reset');
+    }});
+</script>
+</body>
+</html>
