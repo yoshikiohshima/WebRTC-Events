@@ -161,6 +161,8 @@ socket.on('peerDisconnected', function(rm) {
   if (peerConn) {
     peerConn.close();
     peerConn = null;
+  }
+  if (dataChannel) {
     dataChannel.close();
     dataChannel = null;
   }
@@ -314,7 +316,7 @@ function setupStreams(isInitiator) {
 function setupChannels(isInitiator) {
   if (isInitiator) {
     console.log('Creating Data Channel');
-    dataChannel = peerConn.createDataChannel('squeak');
+    dataChannel = peerConn.createDataChannel('channel');
     onDataChannelCreated(dataChannel, isInitiator);
   }
 }

@@ -7,120 +7,183 @@ var fileServer = new(nodeStatic.Server)('webroot');
 var socketIO = require('socket.io');
 
 if (process.argv.length > 2) {
-  var server = require('https');
+  var mod = require('https');
   var serverOptions = {
     key: fs.readFileSync('privkey1.pem'),
     cert: fs.readFileSync('cert1.pem')
   };
-  var app = server.createServer(serverOptions, function(req, res) {
+  var server = mod.createServer(serverOptions, function(req, res) {
     fileServer.serve(req, res);
   });
 } else {
-  var server = require('http');
-  var app = server.createServer(function(req, res) {
+  var mod = require('http');
+  var server = mod.createServer(function(req, res) {
     fileServer.serve(req, res);
   });
-}
+};
 
-app.listen(8080);
+server.listen(8080);
 
-var teachersQueue = [];
-var learnersQueue = [];
-var learners = {}; // room -> socket;
-var teachers = {}; // room -> socket;
+//var teachersQueue = []; // [socket, room or empty or nil, app]
+//var learnersQueue = []; // [socket, room, app]
+//var teachers = {};      // {room -> socket}
+//var learners = {};      // {room -> socket}
 
-function addLearner(socket, room) {
-  if (learners[room] && learners[room].connected) {
+var apps = {}; // {appName -> App}
+
+function App(name) {
+  this.name = name;
+  this.reset();
+};
+
+App.prototype.reset = function() {
+  this.teachersQueue = [];  // [socket, room or empty or nil]
+  this.learnersQueue = [];  // [socket, room, app]
+  this.teachers = {};       // {room -> socket}
+  this.learners = {};       // {room -> socket}
+};
+
+function resetAll() {
+  for (var a in apps) {
+    apps[a].reset();
+  }
+};
+
+function ensureApp(appName) {
+  if (!apps[appName]) {
+    apps[appName] = new App(appName);
+  }
+  return apps[appName];
+};
+
+function deleteRoom(room) {
+  for (var a in apps) {
+    delete apps[a].remove(room);
+  }
+};
+
+App.prototype.remove = function(room) {
+  delete this.learners[room];
+  delete this.teachers[room];
+};
+
+App.prototype.dump = function() {
+  console.log('dump: ' + this.name);
+  console.log('  learners:');
+  console.log(this.learners);
+  console.log('  teachers:');
+  console.log(this.teachers);
+  console.log('  learnersQueue:');
+  console.log(this.learnersQueue);
+  console.log('  teachersQueue:');
+  console.log(this.teachersQueue);
+};
+
+App.prototype.addLearner = function(socket, room) {
+  if (this.learners[room] && this.learners[room].connected) {
     return 'in use';
   }
-  learnersQueue.push([socket, room]);
-  learners[room] = socket;
+  this.learners[room] = socket;
+  this.learnersQueue.push([socket, room]);
   return 'added';
 };
 
-function removeLearner(socket) {
-  for (var k in learners) {
-    if (learners[k] === socket) {
-      delete learners[k];
-    }
+App.prototype.addTeacher = function(socket, room) {
+  if (this.teachers[room] && this.teachers[room].connected) {
+    return 'in use';
   }
-  return false;
+  this.teachersQueue.push([socket, room]);
+  this.teachers[room] = socket;
+  return 'added';
 };
-
-function isLearner(socket) {
-  for (var k in learners) {
-    if (learners[k] === socket) {
+  
+App.prototype.isLearner = function(socket) {
+  for (var k in this.learners) {
+    if (this.learners[k] === socket) {
       return true;
     }
   }
   return false;
 };
 
-function roomFromSocket(socket) {
-  for (var k in learners) {
-    if (learners[k] === socket) {
-      return k;
+App.prototype.findMatchFor = function(pair, queue) {
+  var room = pair[1];
+  console.log('findMatch:' + room, queue);
+  while (true) {
+    if (queue.length === 0) {
+      return null;
+    }
+    var elem = queue[0];
+    if (elem[0].connected && (elem[1] === room || !elem[1] || !room)) {
+      return elem;
+    } else {
+      queue.shift();
     }
   }
-  for (var k in teachers) {
-    if (teachers[k] === socket) {
-      return k;
+};
+
+App.prototype.maybeStartFor = function(role, socket, room) {
+  var learner, teacher;
+  console.log('maybeStart', role, socket.id, room);
+  if (role == 'learner') {
+    learner = [socket, room];
+    teacher = this.findMatchFor(learner, this.teachersQueue);
+    if (teacher) {
+      console.log('t: ' + teacher[1]);
+      this.teachersQueue.shift();
+      socket.join(room);
+      teacher[0].join(room);
+      this.teachers[room] = teacher[0];
+      this.learners[room] = learner[0];
+      io.sockets.in(room).emit('ready', room);
+    } else {
+      var result = this.addLearner(socket, room);
+      if (result === 'full') {
+       socket.emit('full', room);
+      }
+      //console.log('after add learner');
+      //this.dump();
+    }
+  } else {
+    teacher = [socket, room];
+    learner = this.findMatchFor(teacher, this.learnersQueue);
+    if (learner) {
+      console.log('l: ' + learner[1]);
+      this.learnersQueue.shift();
+      room = learner[1];
+      socket.join(room);
+      learner[0].join(room);
+      this.learners[room] = learner[0];
+      this.teachers[room] = teacher[0];
+      io.sockets.in(room).emit('ready', room);
+    } else {
+      this.addTeacher(socket, room);
+    }
+  }
+};
+
+function roomFromSocket(socket) {
+  for (var a in apps) {
+    //console.log('a', a);
+    //apps[a].dump();
+    var learners = apps[a].learners;
+    var teachers = apps[a].teachers;
+    console.log('learners', learners);
+    for (var k in learners) {
+      if (learners[k] === socket) {
+        return [a, k];
+      }
+    }
+    for (var k in teachers) {
+      if (teachers[k] === socket) {
+        return [a, k];
+      }
     }
   }
   return null;
-}
-
-function findFirstAvailableFrom(queue) {
-  while (true) {
-    if (queue.length == 0) {
-      return null;
-    }
-    var elem = queue[0];
-    if (elem[0].connected) {
-      return elem;
-    } else {
-      queue.shift();
-    }
-  }
 };
 
-function findMatchFor(pair, queue) {
-  var room = pair[1];
-  while (true) {
-    if (queue.length == 0) {
-      return null;
-    }
-    var elem = queue[0];
-    if (elem[0].connected && (elem[1] === room || !elem[1])) {
-      return elem;
-    } else {
-      queue.shift();
-    }
-  }
-};
-
-function maybeStart() {
-  console.log("maybeStart");
-  var learner = findFirstAvailableFrom(learnersQueue);
-  if (learner) {
-    console.log('l: ' + learner[1]);
-    var teacher = findMatchFor(learner, teachersQueue);
-  }
-  if (teacher && learner) {
-    console.log('t: ' + teacher[1]);
-    teachersQueue.shift();
-    learnersQueue.shift();
-    var socket = learner[0];
-    var room = learner[1];
-    socket.join(room);
-    teacher[0].join(room);
-    teachers[room] = teacher[0];
-    io.sockets.in(room).emit('ready', room);
-  }
-  console.log('end of maybeStart()');
-}
-
-var io = socketIO.listen(app);
+var io = socketIO.listen(server);
 io.sockets.on('connection', function(socket) {
   console.log('connected: ' + socket.id);
 
@@ -129,29 +192,26 @@ io.sockets.on('connection', function(socket) {
     var array = ['Message from server:'];
     array.push.apply(array, arguments);
     socket.emit('log', array);
-  }
+  };
 
-  socket.on('message', function(message) {
-    log('Client said: ', message);
-    // for a real app, would be room-only (not broadcast)
-    socket.broadcast.emit('message', message);
+  socket.on('message', function(message, room) {
+    log('Client said: ', message + ' in ' + room);
+    socket.in(room).emit('message', message);
+//    // for a real app, would be room-only (not broadcast)
+//    socket.broadcast.emit('message', message);
   });
 
-  socket.on('newTeacher', function(room) {
-    log('a new teacher is looking for a room: ' + room);
-    teachersQueue.push([socket, room]);
-    maybeStart();
+  socket.on('newTeacher', function(room, appName) {
+    log('a new teacher is looking for a room: ' + room + ' for ' + appName);
+    var app = ensureApp(appName);
+    app.maybeStartFor('teacher', socket, room);
   });
 
-  socket.on('newLearner', function (room) {
-    log('a new learner with a room: ' + room);
+  socket.on('newLearner', function (room, appName) {
+    log('a new learner with a room: ' + room + ' for ' + appName);
     socket.emit('created', room, socket.id);
-    var result = addLearner(socket, room);
-    if (result === 'added') {
-      maybeStart();
-    } else if (result === 'in use') {
-      socket.emit('full', room);
-    }
+    var app = ensureApp(appName);
+    app.maybeStartFor('learner', socket, room);
   });
   
   socket.on('ipaddr', function() {
@@ -170,12 +230,16 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('disconnect', function() {
-    console.log('disconnected');
-    var room = roomFromSocket(socket);
-    console.log('room: ' + room);
-    if (room) {
-      delete learners[room];
-      io.sockets.in(room).emit('peerDisconnected', room);
+    console.log('disconnected:' + socket.id);
+    var appAndRoom = roomFromSocket(socket);
+    console.log('app and room: ' + appAndRoom);
+    if (appAndRoom) {
+      var app = appAndRoom[0];
+      var room = appAndRoom[1];
+      apps[app].remove(room);
+      if (room) {
+        io.sockets.in(room).emit('peerDisconnected', room);
+      }
     }
   });
 
@@ -186,15 +250,17 @@ io.sockets.on('connection', function(socket) {
 
   socket.on('reset', function() {
     console.log('reset queues');
-    teachersQueue = [];
-    learnersQueue = [];
-    learners = {};
+    resetAll();
   });
 
-  socket.on('dump', function() {
-    console.log('dump');
-    console.log(learners);
-    console.log(learnersQueue);
-    console.log(teachersQueue);
-  });
+  socket.on('dump', function(appName) {
+    if (appName && apps[appName]) {
+      apps[appName].dump();
+    };
+    if (!appName) {
+      for (var a in apps) {
+        apps[a].dump();
+      }
+    }
+   });
 });
