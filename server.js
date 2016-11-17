@@ -168,7 +168,6 @@ function roomFromSocket(socket) {
     //apps[a].dump();
     var learners = apps[a].learners;
     var teachers = apps[a].teachers;
-    console.log('learners', learners);
     for (var k in learners) {
       if (learners[k] === socket) {
         return [a, k];
