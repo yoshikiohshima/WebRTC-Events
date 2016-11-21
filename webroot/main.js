@@ -1,25 +1,21 @@
 'use strict';
 
-/*
+/* receive ids from the server.  The first element is the learner, or the host of the session.  For all others, the participant at the lower numbered index offers connection to the higher ones.
 
-  Now there may be a 'full' case. Actually there are two full cases.  when two learners try to use the same room id, and when two teachers try to server the same learner.
+create a PeerConnection object for each peer (regardless whether the peer is lower or higher); THEN the lower one starts the negotiation.
 
-  saving with timestamp... but how do we ensure synchronization?
 */
-  
 
-/****************************************************************************
-* Initial setup
-****************************************************************************/
+var configuration = null;
 
-var configuration = {
+configuration = {
    'iceServers': [{
      'url': 'stun:stun.l.google.com:19302'
    }]
  };
 // {'url':'stun:stun.services.mozilla.com'}
 
-//var configuration = null;
+configuration = null;
 
 var room;
 var videoCanvas = document.getElementById('videoCanvas');
@@ -37,6 +33,11 @@ appName = appName || 'Etoys';
 
 var fs;
 
+var myid;
+var peers = {};  // {server socket id -> PeerConn};
+var dataChannels = {};  // {server socket id -> DataChannel};
+var remoteCursors = {}; // {server socket id -> DOM}
+
 function Media() {
   this.stream = null;
   this.recorder = null;
@@ -48,9 +49,10 @@ function Media() {
 
 var canvas = new Media();
 var localAudio = new Media();
-var remoteAudio = new Media();
-var remoteEvents = new Media();
 var localEvents = new Media();
+
+var remoteAudio = {}; // server socket id -> Media
+var remoteEvents = {}; // server socket id -> Media;
 
 var mixedAudio = new Media();
 
@@ -63,45 +65,12 @@ var offerOptions = {
   offerToReceiveVideo: 1
 };
 
-function getRoleFromURL(url) {
-  var queryString = url ? url.split('?')[1] : window.location.search.slice(1);
-  var obj = {};
-  if (queryString) {
-    // stuff after # is not part of query string, so get rid of it
-    queryString = queryString.split('#')[0];
-
-    // split our query string into its component parts
-    var arr = queryString.split('&');
-
-    for (var i = 0; i < arr.length; i++) {
-      // separate the keys and the values
-      var a = arr[i].split('=');
-
-      // in case params look like: list[]=thing1&list[]=thing2
-      var paramNum = undefined;
-      var paramName = a[0].replace(/\[\d*\]/, function(v) {
-        paramNum = v.slice(1,-1);
-        return '';
-      });
-
-      // set parameter value (use 'true' if empty)
-      var paramValue = typeof(a[1])==='undefined' ? true : a[1];
-
-      // (optional) keep case consistent
-      paramName = paramName.toLowerCase();
-      paramValue = paramValue.toLowerCase();
-      obj[paramName] = paramValue;
-    }
-  }
-  return obj;
-}
-
-//var isTeacher = !!getRoleFromURL()['teacher'];
-
 // Create a random room anytime the page is loaded
 if (isLearner) {
   room = window.location.hash = randomToken();
-}
+} else {
+  room = window.location.hash.substring(1);
+};
 
 /****************************************************************************
 * Signaling server
@@ -114,21 +83,26 @@ socket.on('ipaddr', function(ipaddr) {
   console.log('Server IP address is: ' + ipaddr);
 });
 
-socket.on('created', function(rm, clientId) {
-  console.log('Created room', rm, '- my client ID is', clientId);
+socket.on('id', function(clientId, rm) {
+  console.log('id: ' + clientId);
+  myid = clientId;
+  if (rm) {
+    console.log('Created room', rm, '- my client ID is', clientId);
+  }
 });
 
-socket.on('full', function(rm) {
+socket.on('occupied', function(rm) {
   alert('Room ' + rm + ' is full. We will create a new room for you.');
   window.location.reload();
 });
 
-socket.on('ready', function(rm) {
-  console.log('Socket is ready ' + rm);
+socket.on('ready', function(rm, ids) {
+  console.log('Room is ready ' + rm + ' ' + ids);
   if (!isLearner) {
     room = window.location.hash = rm;
   }
-  createPeerConnection(isLearner, configuration);
+  createConnections(configuration, ids);
+  //createPeerConnection(isLearner, configuration);
 });
 
 socket.on('readyAgain', function(rm) {
@@ -143,6 +117,11 @@ socket.on('log', function(array) {
 socket.on('message', function(message) {
   console.log('Client received message:', message);
   signalingMessageCallback(message);
+});
+
+socket.on('uniMessage', function(message, room, from, to) {
+  console.log('Client received direct message:', message + ' ' + room + ' ' + from + ' ' + to);
+  multiSignalingMessageCallback(message, room, from, to);
 });
 
 socket.on('reconnect', function(message) {
@@ -177,6 +156,11 @@ socket.on('peerDisconnected', function(rm) {
 function sendMessage(message, room) {
   console.log('Client sending message: ', message);
   socket.emit('message', message, room);
+}
+
+function uniSendMessage(message, room, from, to) {
+  console.log('Client sending message: ', message, ' to ', to);
+  socket.emit('uniMessage', message, room, from, to);
 }
 
 function dump(appName) {
@@ -222,8 +206,42 @@ if (location.hostname.match(/localhost|127\.0\.0/)) {
 * WebRTC peer connection and data channel
 ****************************************************************************/
 
-var peerConn;
-var dataChannel;
+//var peerConn;
+//var dataChannel;
+
+function localSessionCreatedFactory(conn, from, to) {
+  return function onLocalSessionCreated(desc) {
+    console.log('local session created:', desc);
+    conn.setLocalDescription(desc, function() {
+      console.log('sending local desc:', conn.localDescription);
+      uniSendMessage(conn.localDescription, room, from, to);
+    }, logError);
+  };
+};
+
+function multiSignalingMessageCallback(message, room, from, to) {
+  console.log('multi: ', message, from, to);
+  var peerConn = peers[from];
+  if (message.type === 'offer') {
+    console.log('Got offer. Sending answer to peer: ' + from);
+    peerConn.setRemoteDescription(new RTCSessionDescription(message), function() {},
+                                  logError);
+    peerConn.createAnswer(localSessionCreatedFactory(peerConn, myid, from), logError);
+
+  } else if (message.type === 'answer') {
+    console.log('Got answer.');
+    peerConn.setRemoteDescription(new RTCSessionDescription(message), function() {},
+                                  logError);
+
+  } else if (message.type === 'candidate') {
+    peerConn.addIceCandidate(new RTCIceCandidate({
+      candidate: message.candidate
+    }));
+
+  } else if (message === 'bye') {
+    // TODO: cleanup RTC connection?
+  }
+}
 
 function signalingMessageCallback(message) {
   if (message.type === 'offer') {
@@ -245,79 +263,119 @@ function signalingMessageCallback(message) {
   } else if (message === 'bye') {
     // TODO: cleanup RTC connection?
   }
-}
-
-function createPeerConnection(isInitiator, config) {
-  console.log('Creating Peer connection as initiator?', isInitiator, 'config:',
-              config);
-  peerConn = new RTCPeerConnection(config);
-
-  // send any ice candidates to the other peer
-  peerConn.onicecandidate = function(event) {
-    console.log('icecandidate event:', event);
-    if (event.candidate) {
-      sendMessage({
-        type: 'candidate',
-        label: event.candidate.sdpMLineIndex,
-        id: event.candidate.sdpMid,
-        candidate: event.candidate.candidate
-      }, room);
-    } else {
-      console.log('End of candidates.');
-    }
-  };
-
-  setupStreams(isInitiator);
-  setupChannels(isInitiator);
-  startNegotiation(isInitiator);
-
-  if (!isInitiator) {
-    peerConn.ondatachannel = function(event) {
-      dataChannel = event.channel;
-      onDataChannelCreated(dataChannel, isInitiator);
-    };
-  }
-
-  peerConn.onaddstream = function(event) {
-    console.log('Remote stream added.', event);
-    var tracks = event.stream.getTracks();
-    if (tracks.length > 0 && tracks[0].kind == 'video') {
-      videoCanvas.src = window.URL.createObjectURL(event.stream);
-    } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
-      remoteAudio.stream = event.stream;
-      audio.srcObject = remoteAudio.stream;
-     //window.URL.createObjectURL(event.stream);
-    }
-  };
 };
 
-function startNegotiation(isInitiator) {
+function createConnections(config, ids) {
+  var me = ids.indexOf(myid);
+  console.log('createConnections', me, ids);
+  var newPeers = {};
+  for (var i = 0; i < ids.length; i++) {
+    if (i != me) {
+      var id = ids[i];
+      var conn = peers[id];
+      if (conn && conn.connectionState == "connected") {
+        newPeers[id] = conn;
+      } else {
+        newPeers[id] = createPeerConnection(me < i, config, id);
+      }
+    }
+  }
+  for (var k in peers) {
+    if (ids.indexOf(k) < 0) {
+      peers[k].close();
+    }
+  }
+  peers = newPeers;
+
+  for (var k in peers) {
+    var other = ids.indexOf(k);
+    var isInitiator = me < other;
+    setupStreams(isInitiator, k);
+    setupChannels(isInitiator, k);
+    startNegotiation(isInitiator, k);
+  }
+  console.log("after setting up peers: ", peers);
+};
+
+function createPeerConnection(isInitiator, config, id) {
+  console.log('Creating Peer connection as initiator?', isInitiator, 'config:',
+              config, ' to ', id);
+  return (function() {
+    var peerConn = new RTCPeerConnection(config);
+
+    // send any ice candidates to the other peer
+    peerConn.onicecandidate = function(event) {
+      console.log('icecandidate event:', event);
+      if (event.candidate) {
+        uniSendMessage({
+          type: 'candidate',
+          label: event.candidate.sdpMLineIndex,
+          id: event.candidate.sdpMid,
+          candidate: event.candidate.candidate
+        }, room, myid, id);
+      } else {
+        console.log('End of candidates.');
+      }
+    };
+
+    if (!isInitiator) {
+      peerConn.ondatachannel = function(event) {
+        var dataChannel = event.channel;
+        onDataChannelCreated(dataChannel, isInitiator, peerConn);
+        dataChannels[id] = dataChannel;
+      };
+    };
+
+    peerConn.onaddstream = function(event) {
+      console.log('Remote stream added.', event);
+      var tracks = event.stream.getTracks();
+      if (tracks.length > 0 && tracks[0].kind == 'video') {
+        videoCanvas.src = window.URL.createObjectURL(event.stream);
+      } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
+        remoteAudio.stream = event.stream;
+        audio.srcObject = remoteAudio.stream;
+       //window.URL.createObjectURL(event.stream);
+      }
+    };
+
+    return peerConn;
+  })();
+};
+
+function startNegotiation(isInitiator, id) {
+  var peerConn = peers[id];
   if (isInitiator) {
     console.log('Creating an offer');
-    peerConn.createOffer(onLocalSessionCreated, logError, offerOptions);
+    peerConn.createOffer(localSessionCreatedFactory(peerConn, myid, id), logError, offerOptions);
   }
-}
+};
 
-function setupStreams(isInitiator) {
+function setupStreams(isInitiator, id) {
+  var peerConn = peers[id];
+  var stream;
   if (peerConn) {
     peerConn.getLocalStreams().forEach(function(s) {
       peerConn.removeStream(s)
     });
 
     if (canvas.stream) {
-      peerConn.addStream(canvas.stream);
+      stream = canvas.stream.clone();
+      peerConn.addStream(stream);
     }
     if (localAudio.stream) {
-      peerConn.addStream(localAudio.stream);
+      stream = localAudio.stream.clone();
+      peerConn.addStream(stream);
     }
   }
-}
+};
 
-function setupChannels(isInitiator) {
+function setupChannels(isInitiator, id) {
+  var peerConn = peers[id];
   if (isInitiator) {
-    console.log('Creating Data Channel');
-    dataChannel = peerConn.createDataChannel('channel');
-    onDataChannelCreated(dataChannel, isInitiator);
+    console.log('Creating Data Channel for ' + id);
+    var dataChannel = peerConn.createDataChannel('channel' + id);
+    onDataChannelCreated(dataChannel, isInitiator, peerConn);
+    dataChannels[id] = dataChannel;
   }
 }
 
@@ -329,7 +387,7 @@ function onLocalSessionCreated(desc) {
   }, logError);
 }
 
-function onDataChannelCreated(channel, isInitiator) {
+function onDataChannelCreated(channel, isInitiator, peerConn) {
   console.log('onDataChannelCreated:', channel);
 
   channel.onopen = function() {
@@ -338,8 +396,11 @@ function onDataChannelCreated(channel, isInitiator) {
       peerConn.onnegotiationneeded = function() {
         socket.emit('renegotiate', room);
       }
-      canvasSizeTimer = setInterval(sendCanvasSize, 1000);
-      sqSendEvent = sendEvent;
+      if (sqCanvas) {
+        // there must be a better way to test it but this means that this is the learner
+        canvasSizeTimer = setInterval(sendCanvasSize, 1000);
+        sqSendEvent = sendEvent;
+      }
     };
   };
 
@@ -576,6 +637,7 @@ function receiveDataChromeFactory() {
     if (type == dataTypes.event) {
       // assuming this 12 bytes data won't get split during transimission
       buf = new Uint32Array(event.data);
+      console.log('raw buf', buf);
       receiveEvent(buf);
       buf = null;
       type = null;
@@ -608,10 +670,6 @@ function receiveDataFirefoxFactory() {
   };
 };
 
-/****************************************************************************
-* Aux functions, mostly UI-related
-****************************************************************************/
-
 var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove: 4};
 var dataTypes = {image: 0, event: 1, canvasSize: 2};
 
@@ -624,8 +682,9 @@ function logError(err) {
 }
 
 function sendEvent(evt) {
-  if (dataChannel) {
-    var buf = encodeEvent(evt);
+  var buf = encodeEvent(evt);
+  for (var k in dataChannels) {
+    var dataChannel = dataChannels[k];
     try {
       dataChannel.send(dataTypes.event << 24 | buf.byteLength);
       dataChannel.send(buf);
@@ -669,6 +728,7 @@ function encodeEvent(evt) {
 }
 
 function receiveEvent(buf) {
+  console.log('receiveEvent');
   var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
   if (sqCanvas) {
     var rect = sqCanvas.getBoundingClientRect();
@@ -703,13 +763,14 @@ function receiveEvent(buf) {
 };
 
 function sendCanvasSize() {
-  if (dataChannel) {
-    var nowW = sqCanvas.width;
-    var nowH = sqCanvas.height;
-    if (nowW == lastCanvasWidth &&
-        nowH == lastCanvasHeight) {
-      return;
-    }
+  var nowW = sqCanvas.width;
+  var nowH = sqCanvas.height;
+  if (nowW == lastCanvasWidth &&
+      nowH == lastCanvasHeight) {
+    return;
+  }
+  for (var k in dataChannels) {
+    var dataChannel = dataChannels[k];
     var buf = new Uint32Array(2);
     buf[0] = nowW;
     buf[1] = nowH;
@@ -720,9 +781,9 @@ function sendCanvasSize() {
       console.log('send failed', e);
       return;
     }
-    lastCanvasWidth = nowW;
-    lastCanvasHeight = nowH;
   }
+  lastCanvasWidth = nowW;
+  lastCanvasHeight = nowH;
 };
 
 // function sendImage() {
