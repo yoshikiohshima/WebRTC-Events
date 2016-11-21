@@ -397,8 +397,15 @@ function onDataChannelCreated(channel, isInitiator, peerConn) {
         socket.emit('renegotiate', room);
       }
       if (sqCanvas) {
+        console.log('reset canvas');
         // there must be a better way to test it but this means that this is the learner
+        if (canvasSizeTimer) {
+           clearInterval(canvasSizeTimer);
+           canvasSizeTimer = null;
+        }
         canvasSizeTimer = setInterval(sendCanvasSize, 1000);
+        lastCanvasWidth = -1;
+        lastCanvasHeight = -1;
         sqSendEvent = sendEvent;
       }
     };
@@ -637,7 +644,6 @@ function receiveDataChromeFactory() {
     if (type == dataTypes.event) {
       // assuming this 12 bytes data won't get split during transimission
       buf = new Uint32Array(event.data);
-      console.log('raw buf', buf);
       receiveEvent(buf);
       buf = null;
       type = null;
@@ -728,7 +734,6 @@ function encodeEvent(evt) {
 }
 
 function receiveEvent(buf) {
-  console.log('receiveEvent');
   var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
   if (sqCanvas) {
     var rect = sqCanvas.getBoundingClientRect();
