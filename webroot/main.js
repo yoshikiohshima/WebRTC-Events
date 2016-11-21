@@ -695,7 +695,7 @@ function sendEvent(evt) {
       dataChannel.send(dataTypes.event << 24 | buf.byteLength);
       dataChannel.send(buf);
     } catch(e) {
-      console.log('send failed', e);
+      console.log('send failed', e, ' to ', k);
     }
   }
   if (localEvents.queuer) {
