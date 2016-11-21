@@ -783,7 +783,7 @@ function sendCanvasSize() {
       dataChannel.send(dataTypes.canvasSize << 24 | buf.byteLength);
       dataChannel.send(buf);
     } catch(e) {
-      console.log('send failed', e);
+      console.log('send failed', e, ' to ', k);
       return;
     }
   }
