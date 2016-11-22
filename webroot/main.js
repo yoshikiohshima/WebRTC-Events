@@ -19,8 +19,8 @@ configuration = null;
 
 var room;
 var videoCanvas = document.getElementById('videoCanvas');
-var audio = document.getElementById('audio');
-var remoteCursor = document.getElementById('cursor');
+//var audio = document.getElementById('audio');
+//var remoteCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var lastCanvasWidth = -1;
 var lastCanvasHeight = -1;
@@ -46,6 +46,24 @@ function Media() {
   this.chunks = [];
   this.fileName = '';
 };
+
+function ensureMedia(id) {
+  if (!remoteAudio[id]) {
+    remoteAudio[id] = new Media();
+  };
+  if (!remoteEvents[id]) {
+    remoteEvents[id] = new Media();
+  };
+  if (!remoteCursors[id]) {
+    var c = document.createElement("div");
+    c.id = 'cursor-' + id;
+    c.innerHTML = 'X';
+    c.style.position = 'absolute';
+    remoteCursors[id] = c;
+    document.body.appendChild(c);
+  }
+};
+
 
 var canvas = new Media();
 var localAudio = new Media();
@@ -294,6 +312,7 @@ function createConnections(config, ids) {
     setupStreams(isInitiator, k);
     setupChannels(isInitiator, k);
     startNegotiation(isInitiator, k);
+    ensureMedia(k);
   }
   console.log("after setting up peers: ", peers);
 };
@@ -303,6 +322,7 @@ function createPeerConnection(isInitiator, config, id) {
               config, ' to ', id);
   return (function() {
     var peerConn = new RTCPeerConnection(config);
+    var connID = id;
 
     // send any ice candidates to the other peer
     peerConn.onicecandidate = function(event) {
@@ -322,7 +342,7 @@ function createPeerConnection(isInitiator, config, id) {
     if (!isInitiator) {
       peerConn.ondatachannel = function(event) {
         var dataChannel = event.channel;
-        onDataChannelCreated(dataChannel, isInitiator, peerConn);
+        onDataChannelCreated(dataChannel, isInitiator, peerConn, id);
         dataChannels[id] = dataChannel;
       };
     };
@@ -333,9 +353,12 @@ function createPeerConnection(isInitiator, config, id) {
       if (tracks.length > 0 && tracks[0].kind == 'video') {
         videoCanvas.src = window.URL.createObjectURL(event.stream);
       } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
-        remoteAudio.stream = event.stream;
-        audio.srcObject = remoteAudio.stream;
-       //window.URL.createObjectURL(event.stream);
+        remoteAudio[connID].stream = event.stream;
+        var audio = document.createElement('audio');
+        audio.autoplay = true;
+        audio.id = 'audio-' + connID;
+        document.body.appendChild(audio);
+        audio.srcObject = remoteAudio[connID].stream;
       }
     };
 
@@ -375,7 +398,7 @@ function setupChannels(isInitiator, id) {
   if (isInitiator) {
     console.log('Creating Data Channel for ' + id);
     var dataChannel = peerConn.createDataChannel('channel' + id);
-    onDataChannelCreated(dataChannel, isInitiator, peerConn);
+    onDataChannelCreated(dataChannel, isInitiator, peerConn, id);
     dataChannels[id] = dataChannel;
   }
 }
@@ -388,8 +411,8 @@ function onLocalSessionCreated(desc) {
   }, logError);
 }
 
-function onDataChannelCreated(channel, isInitiator, peerConn) {
-  console.log('onDataChannelCreated:', channel);
+function onDataChannelCreated(channel, isInitiator, peerConn, id) {
+  console.log('onDataChannelCreated:', id, channel);
 
   channel.onopen = function() {
     console.log('CHANNEL opened!!!');
@@ -413,7 +436,7 @@ function onDataChannelCreated(channel, isInitiator, peerConn) {
   };
 
   channel.onmessage = (adapter.browserDetails.browser === 'firefox') ?
-    receiveDataFirefoxFactory() : receiveDataChromeFactory();
+    receiveDataFirefoxFactory(id) : receiveDataChromeFactory(id);
 };
 
 function startCanvas() {
@@ -435,15 +458,12 @@ function startRecording() {
   recordingStartTime = Date.now();
   startRecordingMedia(canvas);
   startRecordingMedia(localAudio);
-  startRecordingRemoteEvents();
-  startRecordingMedia(remoteAudio);
+//  startRecordingRemoteEvents();
+//  startRecordingMedia(remoteAudio);
 };
 
 function startRecordingMedia(media) {
   if (!media.stream) {return;}
-  if (media === mixedAudio) {
-    debugger;
-  }
   var cloned = media.stream.clone();
   media.recorder = new MediaRecorder(cloned);
   media.recorder.start();
@@ -549,28 +569,8 @@ function saveFiles() {
   saveFile(localAudio, 'audio/webm');
   saveFile(remoteAudio, 'audio/webm');
   saveFile(remoteEvents, 'text/plain');
-  saveFile(mixedAudio, 'audio/webm');
+//  saveFile(mixedAudio, 'audio/webm');
 };
-
-// function saveRemoteEvents() {
-//   return saveFile(remoteEvents, 'text/plain');
-// };
-
-// function saveLocalAudio() {
-//   return saveFile(localAudio, 'audio/webm');
-// };
-
-// function saveRemoteAudio() {
-//   return saveFile(remoteAudio, 'audio/webm');
-// };
-
-// function saveCanvas() {
-//   return saveFile(canvas, 'video/webm');
-// };
-
-// function saveMixedAudio() {
-//   return saveFile(mixedAudio, 'audio/webm');
-// };
 
 function saveFile(media, type) {
   if (fs) {
@@ -620,7 +620,7 @@ function setupFileSystem() {
   window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024 * 2, success, fsErrorHandler);
 };
 
-function receiveDataChromeFactory() {
+function receiveDataChromeFactory(id) {
   var buf, count, type;
 
   return function onmessage(event) {
@@ -645,7 +645,7 @@ function receiveDataChromeFactory() {
     if (type == dataTypes.event) {
       // assuming this 12 bytes data won't get split during transimission
       buf = new Uint32Array(event.data);
-      receiveEvent(buf);
+      receiveEvent(buf, id);
       buf = null;
       type = null;
     } else if (type == dataTypes.image) {
@@ -669,11 +669,11 @@ function receiveDataChromeFactory() {
   }
 };
 
-function receiveDataFirefoxFactory() {
+function receiveDataFirefoxFactory(id) {
   return function onmessage(event) {
     var buf = new Uint32Array(event.data);
     console.log('Done. Rendering event.');
-    receiveEvent(buf);
+    receiveEvent(buf, id);
   };
 };
 
@@ -734,8 +734,10 @@ function encodeEvent(evt) {
    return v.buffer;
 }
 
-function receiveEvent(buf) {
+function receiveEvent(buf, id) {
   var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
+  var remoteCursor = remoteCursors[id];
+  if (!remoteCursor) {return;}
   if (sqCanvas) {
     var rect = sqCanvas.getBoundingClientRect();
     left = rect.left;
@@ -757,14 +759,14 @@ function receiveEvent(buf) {
   remoteCursor.style.left = posX.toString() + 'px';
   remoteCursor.style.top = posY.toString() + 'px';
 
-  if (remoteEvents.queuer) {
+  if (remoteEvents[id].queuer) {
     var t = v[0];
     if (type <= 1) {
       var buf = [t, buf[1]];
     } else {
       var buf = [t, posX, posY];
     }
-    remoteEvents.queuer(buf);
+    remoteEvents[id].queuer(buf);
   }
 };
 
