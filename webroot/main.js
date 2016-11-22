@@ -133,23 +133,24 @@ socket.on('reconnect', function(message) {
   }
 });
 
-socket.on('peerDisconnected', function(rm) {
+socket.on('teacherDisconnected', function(rm, id) {
   // the other disconnected from the server, but I seem to have survived as I received this.
   // if I am a learner, keep myself in and wait for a new teacher.
   // if I am a teacher, just rejoin as a new teacher
-  if (peerConn) {
-    peerConn.close();
-    peerConn = null;
+  console.log('teacherDisconnected', rm, id);
+  if (peers[id]) {
+    peers[id].close();
+    delete peers[id];
   }
-  if (dataChannel) {
-    dataChannel.close();
-    dataChannel = null;
+  if (dataChannels[id]) {
+    dataChannels[id].close();
+    delete dataChannels[id];
   }
   
-  if (isLearner) {
-    socket.emit('newLearner', room, appName);
-  } else {
-    socket.emit('newTeacher', room, appName);
+  var size = Object.keys(peers).length;
+
+  if (isLearner && size == 0) {
+    //socket.emit('newLearner', room, appName);
   }
 });
 

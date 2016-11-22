@@ -192,12 +192,13 @@ function learnerSessionFromSocket(socket) {
   return null;
 };
 
-function teacherSessionFromSocket(socket) {
+function removeTeacherFromSocket(socket) {
   for (var a in apps) {
     for (var k in apps[a].sessions) {
       var session = apps[a].sessions[k];
       for (var i = 0; i < session.teachers.length; i++) {
-        if (session.teachers[i] === socket) {
+        if (session.teachers[i].socket === socket) {
+          session.teachers.splice(i, 1);
           return session;
         }
       }
@@ -291,24 +292,24 @@ io.sockets.on('connection', function(socket) {
   socket.on('disconnect', function() {
     console.log('disconnected:' + socket.id);
     var session = learnerSessionFromSocket(socket);
-    console.log('l session: ' + session);
+    console.log('l session: ', session);
     delete sockets[socket.id];
     if (session) {
       var app = session.app;
       var room = session.room;
-      apps[app].remove(room);
       if (room) {
         io.sockets.in(room).emit('roomClosed', room);
       }
+      apps[app].remove(room);
       return;
     }
-    session = teacherSessionFromSocket(socket);
-    console.log('t session: ' + session);
+    session = removeTeacherFromSocket(socket);
+    console.log('t session: ', session);
     if (session) {
-      var app = session.app;
       var room = session.room;
-      apps[app].remove(room);
-      if (room) {
+      if (session.room === room) {
+        console.log('emit teacherDisconnected', room, session);
+        //session.learner.socket.emit('teacherDisconnected', room, socket.id);
         io.sockets.in(room).emit('teacherDisconnected', room, socket.id);
       }
       return;
