@@ -19,8 +19,6 @@ configuration = null;
 
 var room;
 var videoCanvas = document.getElementById('videoCanvas');
-//var audio = document.getElementById('audio');
-//var remoteCursor = document.getElementById('cursor');
 var sqCanvas = document.getElementById(canvasName || 'sqCanvas');
 var lastCanvasWidth = -1;
 var lastCanvasHeight = -1;
