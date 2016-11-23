@@ -13,9 +13,8 @@ configuration = {
      'url': 'stun:stun.l.google.com:19302'
    }]
  };
-// {'url':'stun:stun.services.mozilla.com'}
 
-configuration = null;
+//configuration = null;
 
 var room;
 var videoCanvas = document.getElementById('videoCanvas');
