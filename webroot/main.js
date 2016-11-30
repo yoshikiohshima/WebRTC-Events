@@ -196,6 +196,12 @@ function init() {
   } else {
     startAudio();
     socket.emit('newTeacher', room, appName);
+  };
+
+  if (appName == 'Etoys') {
+    realEncodeEvent = sqEncodeEvent;
+  } else {
+    realEncodeEvent = sqEncodeEvent;  // just for now
   }
 };
 
@@ -310,7 +316,10 @@ function createConnections(config, ids) {
     setupChannels(isInitiator, k);
     startNegotiation(isInitiator, k);
     ensureMedia(k);
-  }
+  };
+  if (window.sqStartUp) {
+    sqStartUp();
+  };
   console.log("after setting up peers: ", peers);
 };
 
@@ -538,7 +547,6 @@ function startRecordingRemoteEvents() {
 function setupAudioMixer() {
   var cxt = new AudioContext();
   if (localAudio.stream && remoteAudio.stream) {
-
     var c1 = cxt.createMediaStreamSource(localAudio.stream.clone());
     var c2 = cxt.createMediaStreamSource(remoteAudio.stream.clone());
     var dest = cxt.createMediaStreamDestination();
@@ -564,7 +572,7 @@ function getGetUserMedia() {
 function saveFiles() {
   saveFile(canvas, 'video/webm');
   saveFile(localAudio, 'audio/webm');
-  saveFile(remoteAudio, 'audio/webm');
+//  saveFile(remoteAudio, 'audio/webm');
   saveFile(remoteEvents, 'text/plain');
 //  saveFile(mixedAudio, 'audio/webm');
 };
@@ -640,7 +648,7 @@ function receiveDataChromeFactory(id) {
     }
 
     if (type == dataTypes.event) {
-      // assuming this 12 bytes data won't get split during transimission
+      // assuming this 20 bytes data won't get split during transimission
       buf = new Uint32Array(event.data);
       receiveEvent(buf, id);
       buf = null;
@@ -674,7 +682,7 @@ function receiveDataFirefoxFactory(id) {
   };
 };
 
-var eventTypes = {keydown: 0, keyup: 1, mousedown: 2, mouseup: 3, mousemove: 4};
+var eventTypes = {keydown: 0, keyup: 1, keystroke: 2, mousedown: 3, mouseup: 4, mousemove: 5};
 var dataTypes = {image: 0, event: 1, canvasSize: 2};
 
 function randomToken() {
@@ -701,6 +709,48 @@ function sendEvent(evt) {
   }
 };
 
+var realEncodeEvent;
+
+function sqEncodeEvent(evt, posX, posY) {
+  var key, buttons, evtType;
+  var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
+  v[0] = eventTypes[evt.type];
+  v[1] = posX;
+  v[2] = posY;
+  switch (evt.type) {
+    case 'mousedown':
+      switch (evt.button || 0) {
+        case 0: buttons = 4; break;      // left
+        case 1: buttons = 2; break;   // middle
+        case 2: buttons = 1; break;     // right
+      }
+      v[4] = buttons;
+      break;
+    case 'mouseup':
+      v[4] = 0;
+      break;
+    case 'mousemove':
+      switch (evt.button || 0) {
+        case 0: buttons = 4; break;      // left
+        case 1: buttons = 2; break;   // middle
+        case 2: buttons = 1; break;     // right
+      }
+      v[3] = 0;
+      v[4] = buttons;
+      break;
+    case 'keydown':
+      v[3] = evt.keyCode;
+      break;
+    case 'keypress':
+      v[3] = evt.keyCode;
+      break;
+    case 'keyup':
+      v[3] = evt.keyCode;
+      break;
+  }
+  return v.buffer;
+};
+
 function encodeEvent(evt) {
    var left = 0, top = 0, scale = 1;
    if (isTeacher && videoCanvas) {
@@ -717,19 +767,9 @@ function encodeEvent(evt) {
      if (lastCanvasWidth > 0) {
        scale = lastCanvasWidth / rect.width;
      }
-   }
-
-   var v = new Uint32Array(3);
-   var type = evt.type;
-   v[0] = eventTypes[type];
-   if (v[0] <= 1) {
-     v[1] = evt.keyCode;
-   } else {
-     v[1] = (evt.clientX - left) * scale;
-     v[2] = (evt.clientY - top) * scale;
-   }
-   return v.buffer;
-}
+   };
+  return realEncodeEvent(evt, (evt.clientX - left) * scale, (evt.clientY - top) * scale);
+};
 
 function receiveEvent(buf, id) {
   var left = 0, top = 0, scale = 1, offX = 0, offY = 0;
@@ -755,6 +795,10 @@ function receiveEvent(buf, id) {
 
   remoteCursor.style.left = posX.toString() + 'px';
   remoteCursor.style.top = posY.toString() + 'px';
+
+  if (remoteCursor.sqRcvEvt) {
+    remoteCursor.sqRcvEvt(buf);
+  };
 
   if (remoteEvents[id].queuer) {
     var t = v[0];

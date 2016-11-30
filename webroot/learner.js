@@ -22,7 +22,7 @@
 
 
 window.onload = function() {
-    SqueakJS.runSqueak('etoys.image', sqCanvas, {
+    SqueakJS.runSqueak('etoys-multiplehands.image', sqCanvas, {
         appName: "Etoys",
         fixedWidth: 1200,
         fixedHeight: 900,
