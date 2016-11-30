@@ -721,7 +721,6 @@ function sqEncodeEvent(evt, posX, posY) {
     case 'mousedown':
     case 'mouseup':
     case 'mousemove':
-      console.log('evt.button', evt.type, evt.button, evt.buttons);
       switch (evt.buttons || 0) {
         case 1: buttons = 4; break;      // left
         case 2: buttons = 2; break;   // middle
@@ -730,12 +729,16 @@ function sqEncodeEvent(evt, posX, posY) {
       v[4] = buttons;
       break;
     case 'keydown':
+      console.log('keydown', evt.keyCode);
       v[3] = evt.keyCode;
+      
       break;
     case 'keypress':
+      console.log('keypress', evt.keyCode);
       v[3] = evt.keyCode;
       break;
     case 'keyup':
+      console.log('keyup', evt.keyCode);
       v[3] = evt.keyCode;
       break;
   }
