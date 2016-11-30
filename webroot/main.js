@@ -317,9 +317,6 @@ function createConnections(config, ids) {
     startNegotiation(isInitiator, k);
     ensureMedia(k);
   };
-  if (window.sqStartUp) {
-    sqStartUp();
-  };
   console.log("after setting up peers: ", peers);
 };
 
@@ -437,6 +434,9 @@ function onDataChannelCreated(channel, isInitiator, peerConn, id) {
         lastCanvasWidth = -1;
         lastCanvasHeight = -1;
         sqSendEvent = sendEvent;
+        if (window.sqStartUp) {
+          sqStartUp();
+        };
       }
     };
   };
@@ -719,23 +719,14 @@ function sqEncodeEvent(evt, posX, posY) {
   v[2] = posY;
   switch (evt.type) {
     case 'mousedown':
-      switch (evt.button || 0) {
-        case 0: buttons = 4; break;      // left
-        case 1: buttons = 2; break;   // middle
-        case 2: buttons = 1; break;     // right
-      }
-      v[4] = buttons;
-      break;
     case 'mouseup':
-      v[4] = 0;
-      break;
     case 'mousemove':
-      switch (evt.button || 0) {
-        case 0: buttons = 4; break;      // left
-        case 1: buttons = 2; break;   // middle
-        case 2: buttons = 1; break;     // right
+      console.log('evt.button', evt.type, evt.button, evt.buttons);
+      switch (evt.buttons || 0) {
+        case 1: buttons = 4; break;      // left
+        case 2: buttons = 2; break;   // middle
+        case 4: buttons = 1; break;     // right
       }
-      v[3] = 0;
       v[4] = buttons;
       break;
     case 'keydown':
