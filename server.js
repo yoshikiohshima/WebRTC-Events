@@ -9,8 +9,8 @@ var socketIO = require('socket.io');
 if (process.argv.length > 2) {
   var mod = require('https');
   var serverOptions = {
-    key: fs.readFileSync('privkey1.pem'),
-    cert: fs.readFileSync('cert1.pem')
+    key: fs.readFileSync('privkey.pem'),
+    cert: fs.readFileSync('cert.pem')
   };
   var server = mod.createServer(serverOptions, function(req, res) {
     fileServer.serve(req, res);
@@ -138,7 +138,7 @@ App.prototype.isNewRoom = function(room) {
 App.prototype.findAvailableTeacherFor = function(learner) {
   var queue = this.teachersQueue;
   var room = learner.room;
-  console.log('findAvaiableTeacher:' + room, queue);
+  //console.log('findAvaiableTeacher:' + room, queue);
   var i = 0;
   while (true) {
     if (i >= queue.length) {
@@ -157,10 +157,10 @@ App.prototype.findAvailableTeacherFor = function(learner) {
 App.prototype.findSessionFor = function(teacher) {
   var queue = this.learnersQueue;
   var room = teacher.room;
-  console.log('findSession:' + room, queue);
+  //console.log('findSession:' + room, queue);
   if (room) {
     if (this.sessions[room]) {
-      console.log("found session:", teacher);
+      //console.log("found session:", teacher);
       return this.sessions[room];
     };
     return null;
@@ -243,7 +243,7 @@ io.sockets.on('connection', function(socket) {
     var session = app.findSessionFor(teacher);
     socket.emit('id', socket.id);
     if (session) {
-      console.log('session: ' + session.room);
+      //console.log('session: ' + session.room);
       session.addTeacher(teacher);
       session.start();
     } else {
@@ -254,7 +254,7 @@ io.sockets.on('connection', function(socket) {
   socket.on('newLearner', function (room, appName) {
     var learner, teacher, session;
     log('a new learner with a room: ' + room + ' for ' + appName);
-    console.log('a new learner with a room: ' + room + ' for ' + appName);
+    //console.log('a new learner with a room: ' + room + ' for ' + appName);
     var app = ensureApp(appName);
     if (app.isNewRoom(room)) {
       socket.emit('id', socket.id, room);
@@ -263,7 +263,7 @@ io.sockets.on('connection', function(socket) {
       app.sessions[room] = session
       teacher = app.findAvailableTeacherFor(learner);
       if (teacher) {
-        console.log('t: ' + teacher.room);
+        //console.log('t: ' + teacher.room);
         session.addTeacher(teacher);
         session.start();
       } else {
@@ -292,7 +292,7 @@ io.sockets.on('connection', function(socket) {
   socket.on('disconnect', function() {
     console.log('disconnected:' + socket.id);
     var session = learnerSessionFromSocket(socket);
-    console.log('l session: ', session);
+    //console.log('l session: ', session);
     delete sockets[socket.id];
     if (session) {
       var app = session.app;
@@ -304,11 +304,10 @@ io.sockets.on('connection', function(socket) {
       return;
     }
     session = removeTeacherFromSocket(socket);
-    console.log('t session: ', session);
+    //console.log('t session: ', session);
     if (session) {
       var room = session.room;
       if (session.room === room) {
-        console.log('emit teacherDisconnected', room, session);
         //session.learner.socket.emit('teacherDisconnected', room, socket.id);
         io.sockets.in(room).emit('teacherDisconnected', room, socket.id);
       }
