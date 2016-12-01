@@ -43,11 +43,13 @@ THE SOFTWARE.
   isTeacher = true;
   canvasName = "sqCanvas";
   appName = "Etoys";
+  wantsDOMCursor = false;
   document.addEventListener('keydown', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('keyup', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('mousedown', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousedown', function(evt) {sendEvent(evt); evt.preventDefault(); return false}, false);
   document.addEventListener('mousemove', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('mouseup', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('click', function(evt) {evt.preventDefault(); return false}, false);
 
   document.getElementById('resetButton').addEventListener("click", function() {
     if (socket && socket.connected) {

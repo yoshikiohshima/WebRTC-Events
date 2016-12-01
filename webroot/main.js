@@ -52,12 +52,16 @@ function ensureMedia(id) {
     remoteEvents[id] = new Media();
   };
   if (!remoteCursors[id]) {
-    var c = document.createElement("div");
-    c.id = 'cursor-' + id;
-    c.innerHTML = 'X';
-    c.style.position = 'absolute';
+    if (wantsDOMCursor) {
+      var c = document.createElement("div");
+      c.id = 'cursor-' + id;
+      c.innerHTML = 'X';
+      c.style.position = 'absolute';
+      document.body.appendChild(c);
+    } else {
+      c = {id: 'cursor-' + id};
+    }
     remoteCursors[id] = c;
-    document.body.appendChild(c);
   }
 };
 
@@ -200,6 +204,8 @@ function init() {
 
   if (appName == 'Etoys') {
     realEncodeEvent = sqEncodeEvent;
+  } else if (appName == 'Snap') {
+    realEncodeEvent = snapEncodeEvent;
   } else {
     realEncodeEvent = sqEncodeEvent;  // just for now
   }
@@ -711,6 +717,31 @@ function sendEvent(evt) {
 
 var realEncodeEvent;
 
+function snapEncodeEvent(evt, posX, posY) {
+  var key, buttons, evtType;
+  var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
+  v[0] = eventTypes[evt.type];
+  v[1] = posX;
+  v[2] = posY;
+  switch (evt.type) {
+    case 'mousedown':
+    case 'mouseup':
+    case 'mousemove':
+      v[4] = evt.buttons;
+      break;
+    case 'keydown':
+      v[3] = evt.keyCode;
+      break;
+    case 'keypress':
+      v[3] = evt.keyCode;
+      break;
+    case 'keyup':
+      v[3] = evt.keyCode;
+      break;
+  }
+  return v.buffer;
+};
+
 function sqEncodeEvent(evt, posX, posY) {
   var key, buttons, evtType;
   var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
@@ -781,14 +812,16 @@ function receiveEvent(buf, id) {
     scale = rect.width / lastCanvasWidth;
   }
 
-  offX = remoteCursor.getBoundingClientRect().width / 2;
-  offY = remoteCursor.getBoundingClientRect().height / 2;
+  if (wantsDOMCursor) {
+    offX = remoteCursor.getBoundingClientRect().width / 2;
+    offY = remoteCursor.getBoundingClientRect().height / 2;
 
-  var posX = (buf[1] * scale) + left - offX;
-  var posY = (buf[2] * scale) + top - offY;
+    var posX = (buf[1] * scale) + left - offX;
+    var posY = (buf[2] * scale) + top - offY;
 
-  remoteCursor.style.left = posX.toString() + 'px';
-  remoteCursor.style.top = posY.toString() + 'px';
+    remoteCursor.style.left = posX.toString() + 'px';
+    remoteCursor.style.top = posY.toString() + 'px';
+  }
 
   if (remoteCursor.sqRcvEvt) {
     remoteCursor.sqRcvEvt(buf);
