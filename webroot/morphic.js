@@ -3582,11 +3582,11 @@ Morph.prototype.wantsDropOf = function (aMorph) {
 Morph.prototype.pickUp = function (wrrld) {
     var world = wrrld || this.world();
     this.setPosition(
-        world.hand.position().subtract(
+        world.activeHand().position().subtract(
             this.extent().floorDivideBy(2)
         )
     );
-    world.hand.grab(this);
+    world.activeHand().grab(this);
 };
 
 Morph.prototype.isPickedUp = function () {
@@ -3804,7 +3804,7 @@ Morph.prototype.inspect = function (anotherObject) {
         inspectee = anotherObject;
     }
     inspector = new InspectorMorph(inspectee);
-    inspector.setPosition(world.hand.position());
+    inspector.setPosition(world.activeHand().position());
     inspector.keepWithin(world);
     world.add(inspector);
     inspector.changed();
@@ -4350,6 +4350,7 @@ HandleMorph.prototype.step = null;
 
 HandleMorph.prototype.mouseDownLeft = function (pos) {
     var world = this.root(),
+        hand = world.activeHand(),
         offset,
         myself = this;
 
@@ -4363,8 +4364,8 @@ HandleMorph.prototype.mouseDownLeft = function (pos) {
     }
     this.step = function () {
         var newPos, newExt;
-        if (world.hand.mouseButton) {
-            newPos = world.hand.bounds.origin.copy().subtract(offset);
+        if (hand.mouseButton) {
+            newPos = hand.bounds.origin.copy().subtract(offset);
             if (this.type === 'resize') {
                 newExt = newPos.add(
                     myself.extent().add(myself.inset)
@@ -5707,8 +5708,8 @@ SpeechBubbleMorph.prototype.popUp = function (world, pos, isClickable) {
     this.keepWithin(world);
     world.add(this);
     this.fullChanged();
-    world.hand.destroyTemporaries();
-    world.hand.temporaries.push(this);
+    world.activeHand().destroyTemporaries();
+    world.activeHand().temporaries.push(this);
 
     if (!isClickable) {
         this.mouseEnter = function () {
@@ -6592,7 +6593,9 @@ SliderMorph.prototype.numericalSetters = function () {
 SliderMorph.prototype.step = null;
 
 SliderMorph.prototype.mouseDownLeft = function (pos) {
-    var world, myself = this;
+    var world,
+        hand,
+        myself = this;
 
     if (!this.button.bounds.containsPoint(pos)) {
         this.offset = new Point(); // return null;
@@ -6600,10 +6603,11 @@ SliderMorph.prototype.mouseDownLeft = function (pos) {
         this.offset = pos.subtract(this.button.bounds.origin);
     }
     world = this.root();
+    hand = world.activeHand();
     this.step = function () {
         var mousePos, newX, newY;
-        if (world.hand.mouseButton) {
-            mousePos = world.hand.bounds.origin;
+        if (hand.mouseButton) {
+            mousePos = hand.bounds.origin;
             if (myself.orientation === 'vertical') {
                 newX = myself.button.bounds.origin.x;
                 newY = Math.max(
@@ -6843,7 +6847,7 @@ InspectorMorph.prototype.buildPanes = function () {
         inspector = new InspectorMorph(
             myself.currentProperty
         );
-        inspector.setPosition(world.hand.position());
+        inspector.setPosition(world.activeHand().position());
         inspector.keepWithin(world);
         world.add(inspector);
         inspector.changed();
@@ -6966,7 +6970,7 @@ InspectorMorph.prototype.buildPanes = function () {
                     inspector = new InspectorMorph(
                         myself.currentProperty
                     );
-                    inspector.setPosition(world.hand.position());
+                    inspector.setPosition(world.activeHand().position());
                     inspector.keepWithin(world);
                     world.add(inspector);
                     inspector.changed();
@@ -7484,7 +7488,7 @@ MenuMorph.prototype.popup = function (world, pos) {
 
 MenuMorph.prototype.popUpAtHand = function (world) {
     var wrrld = world || this.world;
-    this.popup(wrrld, wrrld.hand.position());
+    this.popup(wrrld, wrrld.activeHand().position());
 };
 
 MenuMorph.prototype.popUpCenteredAtHand = function (world) {
@@ -7492,7 +7496,7 @@ MenuMorph.prototype.popUpCenteredAtHand = function (world) {
     this.drawNew();
     this.popup(
         wrrld,
-        wrrld.hand.position().subtract(
+        wrrld.activeHand().position().subtract(
             this.extent().floorDivideBy(2)
         )
     );
@@ -8817,7 +8821,7 @@ TextMorph.prototype.inspectIt = function () {
         inspector;
     if (isObject(result)) {
         inspector = new InspectorMorph(result);
-        inspector.setPosition(world.hand.position());
+        inspector.setPosition(world.activeHand().position());
         inspector.keepWithin(world);
         world.add(inspector);
         inspector.changed();
@@ -9031,7 +9035,7 @@ TriggerMorph.prototype.mouseLeave = function () {
     this.image = this.normalImage;
     this.changed();
     if (this.hint) {
-        this.world().hand.destroyTemporaries();
+        this.world().activeHand().destroyTemporaries();
     }
 };
 
@@ -9060,7 +9064,7 @@ TriggerMorph.prototype.bubbleHelp = function (contents) {
     var myself = this;
     this.fps = 2;
     this.step = function () {
-        if (this.bounds.containsPoint(this.world().hand.position())) {
+        if (this.bounds.containsPoint(this.world().activeHand().position())) {
             myself.popUpbubbleHelp(contents);
         }
         myself.fps = 0;
@@ -9197,7 +9201,7 @@ MenuItemMorph.prototype.mouseLeave = function () {
         this.changed();
     }
     if (this.hint) {
-        this.world().hand.destroyTemporaries();
+        this.world().activeHand().destroyTemporaries();
     }
 };
 
@@ -9613,7 +9617,7 @@ ScrollFrameMorph.prototype.mouseDownLeft = function (pos) {
         return null;
     }
     var world = this.root(),
-        hand = world.hand,
+        hand = world.activeHand(),
         oldPos = pos,
         myself = this,
         deltaX = 0,
@@ -9677,7 +9681,7 @@ ScrollFrameMorph.prototype.startAutoScrolling = function () {
     if (!world) {
         return null;
     }
-    hand = world.hand;
+    hand = world.activeHand();
     if (!this.autoScrollTrigger) {
         this.autoScrollTrigger = Date.now();
     }
@@ -10721,7 +10725,7 @@ HandMorph.prototype.drawNew = function() {
       var context;
       this.image = newCanvas(this.extent());
       context = this.image.getContext('2d');
-      remoteCursorImage(context);
+      cursorImage(context);
     }
 };
 
@@ -10769,6 +10773,7 @@ WorldMorph.prototype.init = function (aCanvas, fillPage) {
     this.broken = [];
     this.hand = new HandMorph(this);
     this.hands = {}; // {idString of socket -> HandMorph}
+    this.theActiveHand = this.hand;
     this.keyboardReceiver = null;
     this.cursor = null;
     this.lastEditedText = null;
@@ -10776,6 +10781,7 @@ WorldMorph.prototype.init = function (aCanvas, fillPage) {
     this.activeHandle = null;
     this.virtualKeyboard = null;
 
+    this.eventListeners = {}; // {event name -> function(evt) {}}
     this.initEventListeners();
 };
 
@@ -10991,6 +10997,14 @@ WorldMorph.prototype.initVirtualKeyboard = function () {
 
 WorldMorph.prototype.initEventListeners = function () {
     var canvas = this.worldCanvas, myself = this;
+    var func;
+
+    var gen = function(f) {
+        return function(evt) {
+            myself.theActiveHand = null;
+            return f(evt);
+        }
+    };
 
     if (myself.useFillPage) {
         myself.fillPage();
@@ -10998,146 +11012,124 @@ WorldMorph.prototype.initEventListeners = function () {
         this.changed();
     }
 
-    canvas.addEventListener(
-        "mousedown",
-        function (event) {
+    func = function (event) {
+        event.preventDefault();
+        canvas.focus();
+        myself.hand.processMouseDown(event);
+    };
+    canvas.addEventListener("mousedown", func, false);
+    this.eventListeners["mousedown"] = func;
+
+    func = function (event) {
+        myself.hand.processTouchStart(event);
+    };
+    canvas.addEventListener("touchstart", func, false);
+    this.eventListeners["touchstart"] = func;
+
+    func = function (event) {
+        event.preventDefault();
+        myself.hand.processMouseUp(event);
+    };
+    canvas.addEventListener("mouseup", func, false);
+    this.eventListeners["mouseup"] = func;
+
+    func = function (event) {
+        event.preventDefault();
+        myself.hand.processDoubleClick(event);
+    };
+    canvas.addEventListener("dblclick", func, false);
+    this.eventListeners["dblclick"] = func;
+
+    func = function (event) {
+        myself.hand.processTouchEnd(event);
+    };
+    canvas.addEventListener("touchend", func, false);
+    this.eventListeners["touchend"] = func;
+
+    func = function (event) {
+        myself.hand.processMouseMove(event);
+    };
+    canvas.addEventListener("mousemove", func, false);
+    this.eventListeners["mousemove"] = func;
+
+    func = function (event) {
+        myself.hand.processTouchMove(event);
+    }
+    canvas.addEventListener("touchmove", func, false);
+    this.eventListeners["touchmove"] = func;
+
+    func = function (event) {
+        // suppress context menu for Mac-Firefox
+        event.preventDefault();
+    };
+    canvas.addEventListener("contextmenu", func, false);
+    this.eventListeners["contextmenu"] = func;
+
+    func = function (event) {
+        // remember the keyCode in the world's currentKey property
+        myself.currentKey = event.keyCode;
+        if (myself.keyboardReceiver) {
+            myself.keyboardReceiver.processKeyDown(event);
+        }
+        // supress backspace override
+        if (event.keyCode === 8) {
             event.preventDefault();
-            canvas.focus();
-            myself.hand.processMouseDown(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "touchstart",
-        function (event) {
-            myself.hand.processTouchStart(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "mouseup",
-        function (event) {
-            event.preventDefault();
-            myself.hand.processMouseUp(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "dblclick",
-        function (event) {
-            event.preventDefault();
-            myself.hand.processDoubleClick(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "touchend",
-        function (event) {
-            myself.hand.processTouchEnd(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "mousemove",
-        function (event) {
-            myself.hand.processMouseMove(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "touchmove",
-        function (event) {
-            myself.hand.processTouchMove(event);
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "contextmenu",
-        function (event) {
-            // suppress context menu for Mac-Firefox
-            event.preventDefault();
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "keydown",
-        function (event) {
-            // remember the keyCode in the world's currentKey property
-            myself.currentKey = event.keyCode;
-            if (myself.keyboardReceiver) {
-                myself.keyboardReceiver.processKeyDown(event);
-            }
-            // supress backspace override
-            if (event.keyCode === 8) {
-                event.preventDefault();
-            }
-            // supress tab override and make sure tab gets
-            // received by all browsers
-            if (event.keyCode === 9) {
-                if (myself.keyboardReceiver) {
-                    myself.keyboardReceiver.processKeyPress(event);
-                }
-                event.preventDefault();
-            }
-            if ((event.ctrlKey && (!event.altKey) || event.metaKey) &&
-                    (event.keyCode !== 86)) { // allow pasting-in
-                event.preventDefault();
-            }
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "keyup",
-        function (event) {
-            // flush the world's currentKey property
-            myself.currentKey = null;
-            // dispatch to keyboard receiver
-            if (myself.keyboardReceiver) {
-                if (myself.keyboardReceiver.processKeyUp) {
-                    myself.keyboardReceiver.processKeyUp(event);
-                }
-            }
-            event.preventDefault();
-        },
-        false
-    );
-
-    canvas.addEventListener(
-        "keypress",
-        function (event) {
+        }
+        // supress tab override and make sure tab gets
+        // received by all browsers
+        if (event.keyCode === 9) {
             if (myself.keyboardReceiver) {
                 myself.keyboardReceiver.processKeyPress(event);
             }
             event.preventDefault();
-        },
-        false
-    );
+        }
+        if ((event.ctrlKey && (!event.altKey) || event.metaKey) &&
+                (event.keyCode !== 86)) { // allow pasting-in
+            event.preventDefault();
+        }
+    };
+    canvas.addEventListener("keydown", func, false);
+    this.eventListeners["keydown"] = func;
 
-    canvas.addEventListener( // Safari, Chrome
-        "mousewheel",
-        function (event) {
-            myself.hand.processMouseScroll(event);
-            event.preventDefault();
-        },
-        false
-    );
+    func = function (event) {
+        // flush the world's currentKey property
+        myself.currentKey = null;
+        // dispatch to keyboard receiver
+        if (myself.keyboardReceiver) {
+            if (myself.keyboardReceiver.processKeyUp) {
+                myself.keyboardReceiver.processKeyUp(event);
+            }
+        }
+        event.preventDefault();
+    };
+    canvas.addEventListener("keyup", func, false);
+    this.eventListeners["keyup"] = func;
+
+    func = function (event) {
+        if (myself.keyboardReceiver) {
+            myself.keyboardReceiver.processKeyPress(event);
+        }
+        event.preventDefault();
+    };
+    canvas.addEventListener("keypress", func, false);
+    this.eventListeners["keypress"] = func;
+
+    func = function (event) {
+        myself.hand.processMouseScroll(event);
+        event.preventDefault();
+    };
+    canvas.addEventListener( // Safari, Chrome 
+                            "mousewheel", func, false);
+    this.eventListeners["mousewheel"] = func;
+
+
+    func = function (event) {
+        myself.hand.processMouseScroll(event);
+        event.preventDefault();
+    };
     canvas.addEventListener( // Firefox
-        "DOMMouseScroll",
-        function (event) {
-            myself.hand.processMouseScroll(event);
-            event.preventDefault();
-        },
-        false
-    );
+        "DOMMouseScroll", func, false);
+    this.eventListeners["DOMMouseScroll"] = func;
 
     document.body.addEventListener(
         "paste",
@@ -11649,11 +11641,48 @@ WorldMorph.prototype.removeHandAt = function(id) {
     delete this.hands[id];
 };
 
+WorldMorph.prototype.activeHand = function() {
+    return this.theActiveHand || this.hand;
+};
+
+
 // RemoteEvents //////////////////////////////////////////////////////////
 
 function decodeRemoteEvent(buf) {
-  var type = ["keydown", "keyup", "keystroke", "mousedown", "mouseup", "mousemove"][buf[0]];
-  return new MouseEvent(type, {clientX: buf[1], clientY: buf[2], buttons: buf[4]});
+  var type = ["keydown", "keyup", "keypress", "mousedown", "mouseup", "mousemove"][buf[0]];
+  var mod = buf[4];
+  // metaKey, altKey, ctrlKey, shiftKey, key, keyCode, charCode
+  var metaKey = !!(mod & 1);
+  var altKey = !!(mod & 2);
+  var ctrlKey = !!(mod & 4);
+  var shiftKey = !!(mod & 8);
+
+  switch (type) {
+    case "mousedown":
+    case "mouseup":
+    case "mousemove":
+      return new MouseEvent(type, {clientX: buf[1], clientY: buf[2], buttons: buf[5], button: buf[6]});
+    case "keydown":
+    case "keypress":
+    case "keyup":
+       // var keyboardEvent = document.createEvent("KeyboardEvent");
+       // var initMethod = typeof keyboardEvent.initKeyboardEvent !== 'undefined' ? "initKeyboardEvent" : "initKeyEvent";
+       // keyboardEvent[initMethod](
+       //              type, // event type : keydown, keyup, keypress
+       //              true, // bubbles
+       //              true, // cancelable
+       //              window, // viewArg: should be window
+       //              ctrlKey, // ctrlKeyArg
+       //              altKey, // altKeyArg
+       //              shiftKey, // shiftKeyArg
+       //              metaKey, // metaKeyArg
+       //              buf[3], // keyCodeArg : unsigned long the virtual key code, else 0
+       //              0 // charCodeArgs : unsigned long the Unicode character associated with the depressed key, else 0
+       // );
+       var evt = {type: type, keyCode: buf[3], altKey: altKey, ctrlKey: ctrlKey, metaKey: metaKey, shiftKey: shiftKey};
+       evt.preventDefault = function() {};
+       return evt;
+  };
 };
 
 function receiveRemoteEvent(idString, buf) {
@@ -11661,6 +11690,7 @@ function receiveRemoteEvent(idString, buf) {
     if (!evt) {return;}
     var hand = world.hands[idString];
     if (hand) {
+        world.theActiveHand = hand;
         var type = evt.type;
         switch (type) {
            case "mousemove":
@@ -11672,7 +11702,17 @@ function receiveRemoteEvent(idString, buf) {
            case "mouseup":
                hand.processMouseUp(evt);
                break;
+           case "keydown":
+               world.eventListeners["keydown"](evt);
+               break;
+           case "keypress":
+               world.eventListeners["keypress"](evt);
+               break;
+           case "keyup":
+               world.eventListeners["keyup"](evt);
+               break;
         }
+        world.theActiveHand = null;
     }
 };
 
@@ -11701,9 +11741,3 @@ window.sqStartUp = function() {
       }
    }
 }
-
-function remoteCursorImage(ctxt) {
-  var data = new Uint8ClampedArray([0,0,0,0,0,0,0,0,94,94,94,95,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,255,94,94,94,95,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,255,255,255,255,255,94,94,94,95,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,255,255,255,255,255,255,255,255,255,255,255,255,94,94,94,108,0,0,0,18,0,0,0,18,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,94,94,94,106,0,0,0,18,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,9,255,255,255,255,255,255,255,255,95,95,95,255,255,255,255,255,255,255,255,255,94,94,94,135,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,9,255,255,255,255,255,255,255,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,1,1,1,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,6,6,6,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,7,7,7,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,137,0,0,0,29,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,9,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,7,7,7,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,93,93,93,113,0,0,0,29,0,0,0,6,0,0,0,6,0,0,0,9,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,6,6,6,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,94,94,94,136,0,0,0,23,0,0,0,23,0,0,0,6,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,95,95,95,255,255,255,255,255,255,255,255,255,95,95,95,110,0,0,0,23,0,0,0,6,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255,14,14,14,255,0,0,0,255,0,0,0,255,0,0,0,255,33,33,33,255,240,240,240,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,94,94,94,122,0,0,0,9,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,6,6,6,255,0,0,0,255,0,0,0,255,13,13,13,255,56,56,56,255,34,34,34,255,0,0,0,255,0,0,0,255,20,20,20,255,165,165,165,255,255,255,255,255,222,222,222,234,189,189,189,214,189,189,189,214,189,189,189,214,189,189,189,214,189,189,189,214,190,190,190,211,190,190,190,211,191,191,191,202,191,191,191,202,46,46,46,55,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,5,5,5,255,0,0,0,255,15,15,15,255,54,54,54,255,239,239,239,255,119,119,119,255,0,0,0,255,0,0,0,255,0,0,0,255,62,62,62,255,255,255,255,255,222,222,222,234,0,0,0,90,0,0,0,83,0,0,0,83,0,0,0,75,0,0,0,75,0,0,0,66,0,0,0,66,0,0,0,39,0,0,0,39,0,0,0,9,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,4,4,4,255,0,0,0,255,57,57,57,255,239,239,239,255,255,255,255,255,214,214,214,255,34,34,34,255,0,0,0,255,0,0,0,255,18,18,18,255,194,194,194,255,255,255,255,255,62,62,62,131,0,0,0,83,0,0,0,83,0,0,0,75,0,0,0,75,0,0,0,66,0,0,0,66,0,0,0,39,0,0,0,39,0,0,0,9,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,3,3,3,255,58,58,58,255,239,239,239,255,255,255,255,255,255,255,255,255,255,255,255,255,76,76,76,255,0,0,0,255,0,0,0,255,0,0,0,255,105,105,105,255,255,255,255,255,158,158,158,191,0,0,0,59,0,0,0,59,0,0,0,30,0,0,0,30,0,0,0,20,0,0,0,20,0,0,0,11,0,0,0,11,0,0,0,2,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,0,0,0,255,49,49,49,255,239,239,239,255,255,255,255,255,159,159,159,193,93,93,93,153,255,255,255,255,173,173,173,255,31,31,31,255,0,0,0,255,0,0,0,255,15,15,15,255,239,239,239,255,255,255,255,255,31,31,31,83,0,0,0,59,0,0,0,30,0,0,0,30,0,0,0,20,0,0,0,20,0,0,0,11,0,0,0,11,0,0,0,2,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,47,47,47,255,239,239,239,255,255,255,255,255,158,158,158,192,0,0,0,85,13,13,13,95,238,238,238,244,255,255,255,255,45,45,45,255,0,0,0,255,0,0,0,255,0,0,0,255,133,133,133,255,255,255,255,255,127,127,127,156,0,0,0,57,0,0,0,21,0,0,0,21,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,11,255,255,255,255,255,255,255,255,239,239,239,255,255,255,255,255,158,158,158,192,0,0,0,89,0,0,0,85,0,0,0,85,158,158,158,191,255,255,255,255,128,128,128,255,0,0,0,255,0,0,0,255,0,0,0,255,42,42,42,255,255,255,255,255,221,221,221,230,0,0,0,57,0,0,0,21,0,0,0,21,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,9,255,255,255,255,255,255,255,255,255,255,255,255,158,158,158,184,0,0,0,69,0,0,0,69,0,0,0,55,0,0,0,55,31,31,31,82,255,255,255,255,226,226,226,255,25,25,25,255,0,0,0,255,0,0,0,255,11,11,11,255,178,178,178,255,255,255,255,255,95,95,95,143,0,0,0,42,0,0,0,42,0,0,0,9,0,0,0,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,9,255,255,255,255,255,255,255,255,158,158,158,184,0,0,0,66,0,0,0,69,0,0,0,69,0,0,0,55,0,0,0,55,0,0,0,58,189,189,189,205,255,255,255,255,96,96,96,255,0,0,0,255,0,0,0,255,11,11,11,255,69,69,69,255,255,255,255,255,189,189,189,210,0,0,0,42,0,0,0,42,0,0,0,9,0,0,0,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,255,255,255,255,156,156,156,163,0,0,0,20,0,0,0,20,0,0,0,20,0,0,0,20,0,0,0,14,0,0,0,14,0,0,0,28,95,95,95,113,255,255,255,255,181,181,181,255,19,19,19,255,0,0,0,255,0,0,0,255,7,7,7,255,223,223,223,255,255,255,255,255,48,48,48,91,0,0,0,54,0,0,0,14,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,141,141,141,148,0,0,0,11,0,0,0,20,0,0,0,20,0,0,0,20,0,0,0,20,0,0,0,14,0,0,0,14,0,0,0,28,0,0,0,28,221,221,221,231,255,255,255,255,47,47,47,255,0,0,0,255,0,0,0,255,6,6,6,255,114,114,114,255,255,255,255,255,157,157,157,179,0,0,0,54,0,0,0,14,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,0,0,0,12,126,126,126,152,255,255,255,255,149,149,149,255,0,0,0,255,0,0,0,255,6,6,6,255,19,19,19,255,255,255,255,255,238,238,238,243,0,0,0,70,0,0,0,25,0,0,0,25,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,0,0,0,12,31,31,31,74,255,255,255,255,239,239,239,255,10,10,10,255,23,23,23,255,114,114,114,255,223,223,223,255,255,255,255,255,206,206,206,220,0,0,0,70,0,0,0,25,0,0,0,25,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,3,0,0,0,25,158,158,158,168,255,255,255,255,209,209,209,255,255,255,255,255,255,255,255,255,255,255,255,255,190,190,190,212,46,46,46,105,0,0,0,71,0,0,0,35,0,0,0,35,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,3,0,0,0,25,45,45,45,68,238,238,238,243,255,255,255,255,238,238,238,244,158,158,158,192,31,31,31,106,0,0,0,85,0,0,0,71,0,0,0,71,0,0,0,35,0,0,0,35,0,0,0,6,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,0,0,0,12,13,13,13,57,61,61,61,96,14,14,14,75,0,0,0,63,0,0,0,54,0,0,0,54,0,0,0,41,0,0,0,41,0,0,0,17,0,0,0,17,0,0,0,3,0,0,0,3,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,0,0,0,12,0,0,0,44,0,0,0,44,0,0,0,63,0,0,0,63,0,0,0,54,0,0,0,54,0,0,0,41,0,0,0,41,0,0,0,17,0,0,0,17,0,0,0,3,0,0,0,3,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,0,0,0,12,0,0,0,12,0,0,0,18,0,0,0,18,0,0,0,14,0,0,0,14,0,0,0,9,0,0,0,9,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,0,0,0,12,0,0,0,12,0,0,0,18,0,0,0,18,0,0,0,14,0,0,0,14,0,0,0,9,0,0,0,9,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0]);
-
-   ctxt.putImageData(new ImageData(data, 27, 43), 0, 0);
-};

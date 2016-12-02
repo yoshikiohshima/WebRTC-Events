@@ -719,7 +719,7 @@ var realEncodeEvent;
 
 function snapEncodeEvent(evt, posX, posY) {
   var key, buttons, evtType;
-  var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
+  var v = new Uint32Array(7);  // [type, posX, posY, keyCode, modifiers, buttons, button]
   v[0] = eventTypes[evt.type];
   v[1] = posX;
   v[2] = posY;
@@ -727,16 +727,19 @@ function snapEncodeEvent(evt, posX, posY) {
     case 'mousedown':
     case 'mouseup':
     case 'mousemove':
-      v[4] = evt.buttons;
+      v[5] = evt.buttons;
+      v[6] = evt.button;
       break;
     case 'keydown':
-      v[3] = evt.keyCode;
-      break;
     case 'keypress':
-      v[3] = evt.keyCode;
-      break;
     case 'keyup':
       v[3] = evt.keyCode;
+      var mod = 0;
+      if (evt.metaKey) {mod = mod | 1};
+      if (evt.altKey) {mod = mod | 2};
+      if (evt.ctrlKey) {mod = mod | 4};
+      if (evt.shiftKey) {mod = mod | 8};
+      v[4] = mod;
       break;
   }
   return v.buffer;

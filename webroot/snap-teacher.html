@@ -7,7 +7,7 @@
 
 	</head>
 	<body style="margin: 0;">
-    <video id="videoCanvas" autoplay></video>
+    <video id="videoCanvas" autoplay oncontextmenu="return false"></video>
     <button id="resetButton">Reset Server</button>
 <script>
   isTeacher = true;
@@ -15,11 +15,17 @@
   appName = "Snap";
   wantsDOMCursor = true;
 
-  document.addEventListener('keydown', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('keyup', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('mousedown', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('mousemove', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('mouseup', function(evt) {sendEvent(evt);}, false);
+  function _sendE(evt) {
+    evt.preventDefault();
+    sendEvent(evt);
+    return true;
+  };
+
+  document.addEventListener('keydown', function(evt) {_sendE(evt);}, false);
+  document.addEventListener('keyup', function(evt) {_sendE(evt);}, false);
+  document.addEventListener('mousedown', function(evt) {_sendE(evt);}, false);
+  document.addEventListener('mousemove', function(evt) {_sendE(evt);}, false);
+  document.addEventListener('mouseup', function(evt) {_sendE(evt);}, false);
 
   document.getElementById('resetButton').addEventListener("click", function() {
     if (socket && socket.connected) {

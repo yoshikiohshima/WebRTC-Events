@@ -2382,9 +2382,10 @@ BlockMorph.prototype.userMenu = function () {
         function () {
             var dup = myself.fullCopy(),
                 ide = myself.parentThatIsA(IDE_Morph);
+            console.log('ww', world.activeHand());
             dup.pickUp(world);
             if (ide) {
-                world.hand.grabOrigin = {
+                world.activeHand().grabOrigin = {
                     origin: ide.palette,
                     position: ide.palette.center()
                 };
@@ -2402,7 +2403,7 @@ BlockMorph.prototype.userMenu = function () {
                 if (nb) {nb.destroy(); }
                 cpy.pickUp(world);
                 if (ide) {
-                    world.hand.grabOrigin = {
+                    world.activeHand().grabOrigin = {
                         origin: ide.palette,
                         position: ide.palette.center()
                     };
@@ -5277,14 +5278,12 @@ ScriptsMorph.prototype.fullCopy = function (forClone) {
 
 ScriptsMorph.prototype.step = function () {
     var world = this.world(),
-        hands = {},
-        primaryHand = world.hand,
+        hands = {primary: world.hand},
         block;
 
     for (var k in world.hands) {
         hands[k] = world.hands[k];
     }
-    hands['primary'] = primaryHand;
 
     if (this.focus && (!world.keyboardReceiver ||
             world.keyboardReceiver instanceof StageMorph)) {
@@ -10094,7 +10093,7 @@ ColorSlotMorph.prototype.getSpec = function () {
 ColorSlotMorph.prototype.getUserColor = function () {
     var myself = this,
         world = this.world(),
-        hand = world.hand,
+        hand = world.activeHand(),
         posInDocument = getDocumentPositionOf(world.worldCanvas),
         mouseMoveBak = hand.processMouseMove,
         mouseDownBak = hand.processMouseDown,
@@ -12622,7 +12621,7 @@ ScriptFocusMorph.prototype.processKeyEvent = function (event, action) {
     var keyName, ctrl, shift;
 
     //console.log(event.keyCode);
-    this.world().hand.destroyTemporaries(); // remove result bubbles, if any
+    this.world().activeHand().destroyTemporaries(); // remove result bubbles, if any
     switch (event.keyCode) {
     case 8:
         keyName = 'backspace';
