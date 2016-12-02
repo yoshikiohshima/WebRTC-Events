@@ -11015,54 +11015,54 @@ WorldMorph.prototype.initEventListeners = function () {
     func = function (event) {
         event.preventDefault();
         canvas.focus();
-        myself.hand.processMouseDown(event);
+        myself.activeHand().processMouseDown(event);
     };
-    canvas.addEventListener("mousedown", func, false);
+    canvas.addEventListener("mousedown", gen(func), false);
     this.eventListeners["mousedown"] = func;
 
     func = function (event) {
-        myself.hand.processTouchStart(event);
+        myself.activeHand().processTouchStart(event);
     };
-    canvas.addEventListener("touchstart", func, false);
+    canvas.addEventListener("touchstart", gen(func), false);
     this.eventListeners["touchstart"] = func;
 
     func = function (event) {
         event.preventDefault();
-        myself.hand.processMouseUp(event);
+        myself.activeHand().processMouseUp(event);
     };
-    canvas.addEventListener("mouseup", func, false);
+    canvas.addEventListener("mouseup", gen(func), false);
     this.eventListeners["mouseup"] = func;
 
     func = function (event) {
         event.preventDefault();
-        myself.hand.processDoubleClick(event);
+        myself.activeHand().processDoubleClick(event);
     };
-    canvas.addEventListener("dblclick", func, false);
+    canvas.addEventListener("dblclick", gen(func), false);
     this.eventListeners["dblclick"] = func;
 
     func = function (event) {
-        myself.hand.processTouchEnd(event);
+        myself.activeHand().processTouchEnd(event);
     };
-    canvas.addEventListener("touchend", func, false);
+    canvas.addEventListener("touchend", gen(func), false);
     this.eventListeners["touchend"] = func;
 
     func = function (event) {
-        myself.hand.processMouseMove(event);
+        myself.activeHand().processMouseMove(event);
     };
-    canvas.addEventListener("mousemove", func, false);
+    canvas.addEventListener("mousemove", gen(func), false);
     this.eventListeners["mousemove"] = func;
 
     func = function (event) {
-        myself.hand.processTouchMove(event);
+        myself.activeHand().processTouchMove(event);
     }
-    canvas.addEventListener("touchmove", func, false);
+    canvas.addEventListener("touchmove", gen(func), false);
     this.eventListeners["touchmove"] = func;
 
     func = function (event) {
         // suppress context menu for Mac-Firefox
         event.preventDefault();
     };
-    canvas.addEventListener("contextmenu", func, false);
+    canvas.addEventListener("contextmenu", gen(func), false);
     this.eventListeners["contextmenu"] = func;
 
     func = function (event) {
@@ -11088,7 +11088,7 @@ WorldMorph.prototype.initEventListeners = function () {
             event.preventDefault();
         }
     };
-    canvas.addEventListener("keydown", func, false);
+    canvas.addEventListener("keydown", gen(func), false);
     this.eventListeners["keydown"] = func;
 
     func = function (event) {
@@ -11102,7 +11102,7 @@ WorldMorph.prototype.initEventListeners = function () {
         }
         event.preventDefault();
     };
-    canvas.addEventListener("keyup", func, false);
+    canvas.addEventListener("keyup", gen(func), false);
     this.eventListeners["keyup"] = func;
 
     func = function (event) {
@@ -11111,62 +11111,55 @@ WorldMorph.prototype.initEventListeners = function () {
         }
         event.preventDefault();
     };
-    canvas.addEventListener("keypress", func, false);
+    canvas.addEventListener("keypress", gen(func), false);
     this.eventListeners["keypress"] = func;
 
     func = function (event) {
-        myself.hand.processMouseScroll(event);
+        myself.activeHand().processMouseScroll(event);
         event.preventDefault();
     };
     canvas.addEventListener( // Safari, Chrome 
-                            "mousewheel", func, false);
+                            "mousewheel", gen(func), false);
     this.eventListeners["mousewheel"] = func;
 
 
     func = function (event) {
-        myself.hand.processMouseScroll(event);
+        myself.activeHand().processMouseScroll(event);
         event.preventDefault();
     };
     canvas.addEventListener( // Firefox
-        "DOMMouseScroll", func, false);
+        "DOMMouseScroll", gen(func), false);
     this.eventListeners["DOMMouseScroll"] = func;
 
-    document.body.addEventListener(
-        "paste",
-        function (event) {
-            var txt = event.clipboardData.getData("Text");
-            if (txt && myself.cursor) {
-                myself.cursor.insert(txt);
-            }
-        },
-        false
-    );
+    func = function (event) {
+        var txt = event.clipboardData.getData("Text");
+        if (txt && myself.cursor) {
+            myself.cursor.insert(txt);
+        }
+    };
+    document.body.addEventListener("paste", gen(func), false);
+    this.eventListeners["paste"] = func;
 
-    window.addEventListener(
-        "dragover",
-        function (event) {
-            event.preventDefault();
-        },
-        false
-    );
-    window.addEventListener(
-        "drop",
-        function (event) {
-            myself.hand.processDrop(event);
-            event.preventDefault();
-        },
-        false
-    );
+    func = function (event) {
+        event.preventDefault();
+    };
+    window.addEventListener("dragover", gen(func), false);
+    this.eventListeners["dragover"] = func;
+ 
+    func = function (event) {
+        myself.activeHand().processDrop(event);
+        event.preventDefault();
+    };
+    window.addEventListener("drop", gen(func), false);
+    this.eventListeners["drop"] = func;
 
-    window.addEventListener(
-        "resize",
-        function () {
-            if (myself.useFillPage) {
-                myself.fillPage();
-            }
-        },
-        false
-    );
+    func = function () {
+        if (myself.useFillPage) {
+            myself.fillPage();
+        }
+    };
+    window.addEventListener("resize", gen(func), false);
+    this.eventListeners["resize"] = func;
 
     window.onbeforeunload = function (evt) {
         var e = evt || window.event,
