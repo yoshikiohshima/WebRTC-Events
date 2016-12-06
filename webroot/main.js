@@ -747,7 +747,8 @@ function snapEncodeEvent(evt, posX, posY) {
 };
 
 function sqEncodeEvent(evt, posX, posY) {
-  var key, buttons, evtType, code;
+  var key, buttons, code;
+
   var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
  
   var squeakCode = ({
@@ -779,6 +780,7 @@ function sqEncodeEvent(evt, posX, posY) {
     return modifiers;
   };
 
+  buttons = 0;
   switch (evt.buttons || 0) {
     case 1: buttons = 4; break;      // left
     case 2: buttons = 2; break;   // middle
@@ -790,15 +792,24 @@ function sqEncodeEvent(evt, posX, posY) {
   v[2] = posY;
   v[3] = evt.keyCode;
   v[4] = buttons + encodeModifiers(evt);
-  console.log('e: ', v[0], v[3], v[4]);
   if (squeakCode) {
     if (evt.type == 'keydown') { // special key pressed
       v[0] = eventTypes['keypress']; // probably a bug workaround
       v[3] = squeakCode;
       evt.preventDefault();
-    } else {
-      return null;
     }
+  } else if ((evt.metaKey || (evt.altKey && !evt.ctrlKey))) {
+    code = evt.keyCode;
+    key = evt.key; // only supported in FireFox, others have keyIdentifier
+    if (!key && evt.keyIdentifier && evt.keyIdentifier.slice(0,2) == 'U+') {
+      key = String.fromCharCode(parseInt(evt.keyIdentifier.slice(2), 16));
+    }
+    if (key && key.length == 1) {
+      var code = key.charCodeAt(0);
+      if (/[A-Z]/.test(key) && !evt.shiftKey) code += 32;  // make lower-case
+    }
+    v[3] = code;
+    evt.preventDefault();
   }
   return v.buffer;
 };

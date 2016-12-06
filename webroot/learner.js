@@ -24,6 +24,7 @@
 window.onload = function() {
     SqueakJS.runSqueak('etoys-multiplehands.image', sqCanvas, {
         appName: "Etoys",
+        forceDownload: (document.location.hostname == 'localhost'),
         fixedWidth: 1200,
         fixedHeight: 900,
         fullscreen: true,
