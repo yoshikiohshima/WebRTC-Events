@@ -46,7 +46,8 @@ THE SOFTWARE.
   wantsDOMCursor = false;
   document.addEventListener('keydown', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('keyup', function(evt) {sendEvent(evt);}, false);
-  document.addEventListener('mousedown', function(evt) {sendEvent(evt); evt.preventDefault(); return false}, false);
+  document.addEventListener('keypress', function(evt) {sendEvent(evt);}, false);
+  document.addEventListener('mousedown', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('mousemove', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('mouseup', function(evt) {sendEvent(evt);}, false);
   document.addEventListener('click', function(evt) {evt.preventDefault(); return false}, false);

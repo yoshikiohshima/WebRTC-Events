@@ -688,7 +688,7 @@ function receiveDataFirefoxFactory(id) {
   };
 };
 
-var eventTypes = {keydown: 0, keyup: 1, keystroke: 2, mousedown: 3, mouseup: 4, mousemove: 5};
+var eventTypes = {keydown: 0, keyup: 1, keypress: 2, mousedown: 3, mouseup: 4, mousemove: 5};
 var dataTypes = {image: 0, event: 1, canvasSize: 2};
 
 function randomToken() {
@@ -701,6 +701,7 @@ function logError(err) {
 
 function sendEvent(evt) {
   var buf = encodeEvent(evt);
+  if (!buf) {return;}
   for (var k in dataChannels) {
     var dataChannel = dataChannels[k];
     try {
@@ -746,35 +747,58 @@ function snapEncodeEvent(evt, posX, posY) {
 };
 
 function sqEncodeEvent(evt, posX, posY) {
-  var key, buttons, evtType;
+  var key, buttons, evtType, code;
   var v = new Uint32Array(5);  // [type, posX, posY, key, buttons]
+ 
+  var squeakCode = ({
+            8: 8,   // Backspace
+            9: 9,   // Tab
+            13: 13, // Return
+            27: 27, // Escape
+            32: 32, // Space
+            33: 11, // PageUp
+            34: 12, // PageDown
+            35: 4,  // End
+            36: 1,  // Home
+            37: 28, // Left
+            38: 30, // Up
+            39: 29, // Right
+            40: 31, // Down
+            45: 5,  // Insert
+            46: 127, // Delete
+  })[evt.keyCode];
+    
+  function encodeModifiers(evt) {
+    var shiftPressed = evt.shiftKey,
+      ctrlPressed = evt.ctrlKey && !evt.altKey,
+      cmdPressed = evt.metaKey || (evt.altKey && !evt.ctrlKey),
+      modifiers =
+        (shiftPressed ? 8 : 0) +
+        (ctrlPressed ? 16 : 0) +
+        (cmdPressed ? 64 : 0);
+    return modifiers;
+  };
+
+  switch (evt.buttons || 0) {
+    case 1: buttons = 4; break;      // left
+    case 2: buttons = 2; break;   // middle
+    case 4: buttons = 1; break;     // right
+  };
+
   v[0] = eventTypes[evt.type];
   v[1] = posX;
   v[2] = posY;
-  switch (evt.type) {
-    case 'mousedown':
-    case 'mouseup':
-    case 'mousemove':
-      switch (evt.buttons || 0) {
-        case 1: buttons = 4; break;      // left
-        case 2: buttons = 2; break;   // middle
-        case 4: buttons = 1; break;     // right
-      }
-      v[4] = buttons;
-      break;
-    case 'keydown':
-      console.log('keydown', evt.keyCode);
-      v[3] = evt.keyCode;
-      
-      break;
-    case 'keypress':
-      console.log('keypress', evt.keyCode);
-      v[3] = evt.keyCode;
-      break;
-    case 'keyup':
-      console.log('keyup', evt.keyCode);
-      v[3] = evt.keyCode;
-      break;
+  v[3] = evt.keyCode;
+  v[4] = buttons + encodeModifiers(evt);
+  console.log('e: ', v[0], v[3], v[4]);
+  if (squeakCode) {
+    if (evt.type == 'keydown') { // special key pressed
+      v[0] = eventTypes['keypress']; // probably a bug workaround
+      v[3] = squeakCode;
+      evt.preventDefault();
+    } else {
+      return null;
+    }
   }
   return v.buffer;
 };
