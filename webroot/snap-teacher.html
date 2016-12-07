@@ -16,12 +16,12 @@
   wantsDOMCursor = true;
 
   function _sendE(evt) {
-    evt.preventDefault();
     sendEvent(evt);
     return true;
   };
 
   document.addEventListener('keydown', function(evt) {_sendE(evt);}, false);
+  document.addEventListener('keypress', function(evt) {_sendE(evt);}, false);
   document.addEventListener('keyup', function(evt) {_sendE(evt);}, false);
   document.addEventListener('mousedown', function(evt) {_sendE(evt);}, false);
   document.addEventListener('mousemove', function(evt) {_sendE(evt);}, false);

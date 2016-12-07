@@ -4979,19 +4979,15 @@ CursorMorph.prototype.initializeClipboardHandler = function () {
     this.clipboardHandler.focus();
     this.clipboardHandler.select();
 
-    this.clipboardHandler.addEventListener(
-        'keypress',
-        function (event) {
-            myself.processKeyPress(event);
-            this.value = myself.target.selection();
-            this.select();
-        },
-        false
-    );
+    this.eventListeners = {};
 
-    this.clipboardHandler.addEventListener(
-        'keydown',
-        function (event) {
+    this.eventListeners.keypress = function (event) {
+      myself.processKeyPress(event);
+      this.value = myself.target.selection();
+      this.select();
+    };
+
+    this.eventListeners.keydown = function (event) {
             myself.processKeyDown(event);
             if (event.shiftKey) {
                 wrrld.currentKey = 16;
@@ -5005,28 +5001,27 @@ CursorMorph.prototype.initializeClipboardHandler = function () {
                 myself.processKeyPress(event);
                 event.preventDefault();
             }
-        },
-        false
-    );
+    };
 
-    this.clipboardHandler.addEventListener(
-        'keyup',
-        function (event) {
+    this.eventListeners.keyup = function (event) {
             wrrld.currentKey = null;
-        },
-        false
-    );
+    };
 
-    this.clipboardHandler.addEventListener(
-        'input',
-        function (event) {
+    this.eventListeners.input = function (event) {
             if (this.value === '') {
                 myself.gotoSlot(myself.target.selectionStartSlot());
                 myself.target.deleteSelection();
             }
-        },
-        false
-    );
+    };
+
+    for (var k in this.eventListeners) {
+       (function(name, func) {
+         myself.clipboardHandler.addEventListener(name, function(evt) {
+         wrrld.theActiveHand = null;
+         func.call(this, evt);
+       }, false);
+     })(k, this.eventListeners[k]);
+   }
 };
 
 // CursorMorph event processing:
@@ -11696,14 +11691,17 @@ function receiveRemoteEvent(idString, buf) {
                hand.processMouseUp(evt);
                break;
            case "keydown":
-               world.eventListeners["keydown"](evt);
-               break;
            case "keypress":
-               world.eventListeners["keypress"](evt);
-               break;
            case "keyup":
-               world.eventListeners["keyup"](evt);
-               break;
+             if (type == "keypress") {
+		 console.log('foo');
+             }
+             if (world.cursor) {
+               world.cursor.eventListeners[type].call(world.cursor.clipboardHandler, (evt));
+             } else {
+               world.eventListeners[type](evt);
+             }
+             break;
         }
         world.theActiveHand = null;
     }
