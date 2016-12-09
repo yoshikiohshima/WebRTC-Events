@@ -6202,7 +6202,7 @@ StageMorph.prototype.clear = function () {
 StageMorph.prototype.userMenu = function () {
     var ide = this.parentThatIsA(IDE_Morph),
         menu = new MenuMorph(this),
-        shiftClicked = this.world().currentKey === 16,
+        shiftClicked = this.world().currentEvent.shiftKey,
         myself = this;
 
     if (ide && ide.isAppMode) {

@@ -917,7 +917,7 @@ TableMorph.prototype.mouseDownLeft = function (pos) {
     var rel = pos.subtract(this.position());
     if (rel.x <= this.rowLabelWidth || (rel.y <= this.colLabelHeight)) {
         // resize cells
-        if (this.world().currentKey === 16) { // shiftClicked
+        if (this.world().currentEvent.shiftKey) { // shiftClicked
             this.resizeCol = 0;
         } else {
             this.resizeCol = this.columnAt(rel.x);

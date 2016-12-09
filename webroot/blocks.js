@@ -2272,7 +2272,7 @@ BlockMorph.prototype.userMenu = function () {
     var menu = new MenuMorph(this),
         world = this.world(),
         myself = this,
-        shiftClicked = world.currentKey === 16,
+        shiftClicked = world.currentEvent.shiftKey;
         proc = this.activeProcess(),
         vNames = proc && proc.context && proc.context.outerContext ?
                 proc.context.outerContext.variables.names() : [],
@@ -5794,7 +5794,7 @@ ScriptsMorph.prototype.reactToDropOf = function (droppedMorph, hand) {
 // ScriptsMorph events
 
 ScriptsMorph.prototype.mouseClickLeft = function (pos) {
-    var shiftClicked = this.world().currentKey === 16;
+    var shiftClicked = this.world().currentEvent.shiftKey;
     if (shiftClicked) {
         return this.edit(pos);
     }
@@ -10480,7 +10480,7 @@ MultiArgMorph.prototype.mouseClickLeft = function (pos) {
     var arrows = this.arrows(),
         leftArrow = arrows.children[0],
         rightArrow = arrows.children[1],
-        repetition = this.world().currentKey === 16 ? 3 : 1,
+        repetition = this.world().currentEvent.shiftKey ? 3 : 1,
         i;
 
     this.startLayout();

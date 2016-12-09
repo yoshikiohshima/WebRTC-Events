@@ -2171,7 +2171,7 @@ PrototypeHatBlockMorph.prototype.mouseClickLeft = function () {
     // is pressed, in which case initiate keyboard
     // editing support
 
-    if (this.world().currentKey === 16) { // shift-clicked
+    if (this.world().currentEvent.shiftKey) { // shift-clicked
         return this.focus();
     }
     this.parts()[0].mouseClickLeft();

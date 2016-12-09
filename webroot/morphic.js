@@ -5018,6 +5018,7 @@ CursorMorph.prototype.initializeClipboardHandler = function () {
        (function(name, func) {
          myself.clipboardHandler.addEventListener(name, function(evt) {
          wrrld.theActiveHand = null;
+         wrrld.currentEvent = evt;
          func.call(this, evt);
        }, false);
      })(k, this.eventListeners[k]);
@@ -8140,7 +8141,7 @@ StringMorph.prototype.selectAll = function () {
 };
 
 StringMorph.prototype.mouseDownLeft = function (pos) {
-    if (this.world().currentKey === 16) {
+    if (this.world().currentEvent.shiftKey) {
         this.shiftClick(pos);
     } else if (this.isEditable) {
         this.clearSelection();
@@ -8242,7 +8243,7 @@ StringMorph.prototype.enableSelecting = function () {
     this.mouseDownLeft = function (pos) {
         var crs = this.root().cursor,
             already = crs ? crs.target === this : false;
-        if (this.world().currentKey === 16) {
+        if (this.world().currentEvent.shiftKey) {
             this.shiftClick(pos);
         } else {
             this.clearSelection();
@@ -10770,6 +10771,7 @@ WorldMorph.prototype.init = function (aCanvas, fillPage) {
     this.hands = {}; // {idString of socket -> HandMorph}
     this.theActiveHand = this.hand;
     this.keyboardReceiver = null;
+    this.currentEvent = null;
     this.cursor = null;
     this.lastEditedText = null;
     this.activeMenu = null;
@@ -10943,6 +10945,7 @@ WorldMorph.prototype.initVirtualKeyboard = function () {
         function (event) {
             // remember the keyCode in the world's currentKey property
             myself.currentKey = event.keyCode;
+            myself.currentEvent = event;
             if (myself.keyboardReceiver) {
                 myself.keyboardReceiver.processKeyDown(event);
             }
@@ -10997,6 +11000,7 @@ WorldMorph.prototype.initEventListeners = function () {
     var gen = function(f) {
         return function(evt) {
             myself.theActiveHand = null;
+            myself.currentEvent = evt;
             return f(evt);
         }
     };
@@ -11633,7 +11637,6 @@ WorldMorph.prototype.activeHand = function() {
     return this.theActiveHand || this.hand;
 };
 
-
 // RemoteEvents //////////////////////////////////////////////////////////
 
 function decodeRemoteEvent(buf) {
@@ -11649,7 +11652,7 @@ function decodeRemoteEvent(buf) {
     case "mousedown":
     case "mouseup":
     case "mousemove":
-      return new MouseEvent(type, {clientX: buf[1], clientY: buf[2], buttons: buf[5], button: buf[6]});
+      return new MouseEvent(type, {clientX: buf[1], clientY: buf[2], buttons: buf[5], button: buf[6], metaKey: metaKey, altKey: altKey, ctrlKey: ctrlKey, shiftKey: shiftKey});
     case "keydown":
     case "keypress":
     case "keyup":
@@ -11679,6 +11682,7 @@ function receiveRemoteEvent(idString, buf) {
     var hand = world.hands[idString];
     if (hand) {
         world.theActiveHand = hand;
+        world.currentEvent = evt;
         var type = evt.type;
         switch (type) {
            case "mousemove":

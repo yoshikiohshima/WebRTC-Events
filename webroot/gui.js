@@ -1794,7 +1794,7 @@ IDE_Morph.prototype.refreshPalette = function (shouldIgnorePosition) {
 };
 
 IDE_Morph.prototype.pressStart = function () {
-    if (this.world().currentKey === 16) { // shiftClicked
+    if (this.world().currentEvent.shiftKey) { // shiftClicked
         this.toggleFastTracking();
     } else {
         this.stage.threads.pauseCustomHatBlocks = false;
@@ -2176,7 +2176,7 @@ IDE_Morph.prototype.snapMenu = function () {
                 + '\nand show user-friendly ones',
             new Color(0, 100, 0)
         );
-    } else if (world.currentKey === 16) { // shift-click
+    } else if (world.currentEvent.shiftKey) { // shift-click
         menu.addLine();
         menu.addItem(
             'Switch to dev mode',
@@ -2194,7 +2194,7 @@ IDE_Morph.prototype.cloudMenu = function () {
         myself = this,
         world = this.world(),
         pos = this.controlBar.cloudButton.bottomLeft(),
-        shiftClicked = (world.currentKey === 16);
+        shiftClicked = (world.currentEvent.shiftKey);
 
     menu = new MenuMorph(this);
     if (shiftClicked) {
@@ -2331,7 +2331,7 @@ IDE_Morph.prototype.settingsMenu = function () {
         world = this.world(),
         myself = this,
         pos = this.controlBar.settingsButton.bottomLeft(),
-        shiftClicked = (world.currentKey === 16);
+        shiftClicked = (world.currentEvent.shiftKey);
 
     function addPreference(label, toggle, test, onHint, offHint, hide) {
         var on = '\u2611 ',
@@ -2692,7 +2692,7 @@ IDE_Morph.prototype.projectMenu = function () {
         pos = this.controlBar.projectButton.bottomLeft(),
         graphicsName = this.currentSprite instanceof SpriteMorph ?
                 'Costumes' : 'Backgrounds',
-        shiftClicked = (world.currentKey === 16);
+        shiftClicked = (world.currentEvent.shiftKey);
 
     // Utility for creating Costumes, etc menus.
     // loadFunction takes in two parameters: a file URL, and a canonical name
@@ -4340,8 +4340,8 @@ IDE_Morph.prototype.toggleStageSize = function (isSmall, forcedRatio) {
     var myself = this,
         smallRatio = forcedRatio || 0.5,
         world = this.world(),
-        shiftClicked = (world.currentKey === 16),
-        altClicked = (world.currentKey === 18);
+        shiftClicked = world.currentEvent.shiftKey,
+        altClicked = world.altKey;
 
     function toggle() {
         myself.isSmallStage = isNil(isSmall) ? !myself.isSmallStage : isSmall;
@@ -6567,7 +6567,7 @@ CostumeIconMorph.prototype.userMenu = function () {
     var menu = new MenuMorph(this);
     if (!(this.object instanceof Costume)) {return null; }
     menu.addItem("edit", "editCostume");
-    if (this.world().currentKey === 16) { // shift clicked
+    if (this.world().currentEvent.shiftKey) { // shift clicked
         menu.addItem(
             'edit rotation point only...',
             'editRotationPointOnly',
