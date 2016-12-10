@@ -261,7 +261,7 @@ PaintEditorMorph.prototype.openIn = function (world, oldim, oldrc, callback) {
     };
 
     this.processKeyDown = function () {
-        this.shift = this.world().currentKey === 16;
+        this.shift = this.world().currentEvent.shiftKey;
         this.propertiesControls.constrain.refresh();
     };
 
@@ -558,12 +558,25 @@ PaintColorPickerMorph.prototype.mouseMove =
 */
 
 function PaintCanvasHand(hand, paintCanvas) {
-  this.dragRect = new Rectangle();
+  this.dragRect = null; //new Rectangle();
+  // rectangle with origin being the starting drag position and
+  // corner being the current drag position
   this.hand = hand;
   this.isShiftPressed = false || function() {
-    return (paintCanvas.world().currentKey == 16) // has to be about current key of hand
+    return paintCanvas.world().currentEvent.shiftKey;
   };
   this.brushBuffer = [];
+  this.mask = newCanvas(paintCanvas.extent(), true);
+};
+
+PaintCanvasHand.prototype.clearMask = function() {
+  var ctx = this.mask.getContext('2d');
+  ctx.clearRect(0, 0, this.mask.width, this.mask.height);
+};
+
+PaintCanvasHand.prototype.reset = function() {
+  this.brushBuffer = [];
+  this.dragRect = null;
 };
 
 PaintCanvasMorph.prototype = new Morph();
@@ -572,24 +585,21 @@ PaintCanvasMorph.uber = Morph.prototype;
 
 function PaintCanvasMorph(shift) {
     this.init(shift);
-}
+};
 
 PaintCanvasMorph.prototype.init = function (shift) {
-    
     this.rotationCenter = new Point(240, 180);
     this.currentTool = "brush";
     this.hands = {'primary': new PaintCanvasHand(world.hand, this)} // {id -> PaintCanvasHand}
-    // rectangle with origin being the starting drag position and
-    // corner being the current drag position
-    this.mask = newCanvas(this.extent(), true); // Temporary canvas
+    this.maskOrder = ['primary'];    
     this.paper = newCanvas(this.extent(), true); // Actual canvas
-    this.erasermask = newCanvas(this.extent(), true); // eraser memory
     this.background = newCanvas(this.extent()); // checkers
     this.settings = {
         "primarycolor": new Color(0, 0, 0, 255), // usually fill color
         "secondarycolor": new Color(0, 0, 0, 255), // (unused)
         "linewidth": 3 // stroke width
     };
+    this.erasing = false;
     this.undoBuffer = [];
     // should we calculate the center of the image ourselves,
     // or use the user position
@@ -598,9 +608,24 @@ PaintCanvasMorph.prototype.init = function (shift) {
     this.buildContents();
 };
 
-PaintCanvasMorph.prototype.ensureHand = function (id, hand) {
-    if (this.hands[id]) {return;}
-    this.hands[id] = new PaintCanvasHand(hand, this);
+PaintCanvasMorph.prototype.ensureHand = function () {
+    var hand = (this.world() || world).activeHand();
+    var id = hand.id || 'primary';
+    if (!this.hands[id]) {
+        this.hands[id] = new PaintCanvasHand(hand, this);
+    }
+    if (this.maskOrder.indexOf(id) < 0) {
+      this.maskOrder.push(id);
+    }
+    return id;
+};
+
+PaintCanvasMorph.prototype.setMaskOrder = function (id) {
+   var ind = this.maskOrder.indexOf[id];
+   if (ind >= 0) {
+     this.maskOrder.splice(ind, 1);
+     this.maskOrder.push(id);
+   }
 };
 
 // Calculate the center of all the non-transparent pixels on the canvas.
@@ -626,7 +651,10 @@ PaintCanvasMorph.prototype.updateAutomaticCenter = function () {
 
 PaintCanvasMorph.prototype.scale = function (x, y) {
     this.updateAutomaticCenter();
-    this.mask = newCanvas(this.extent(), true);
+    for (var key in this.hands) {
+       var hand = this.hands[key];
+       hand.mask = newCanvas(this.extent(), true);
+    };
     var c = newCanvas(this.extent(), true);
     c.getContext("2d").save();
     c.getContext("2d").translate(
@@ -654,7 +682,6 @@ PaintCanvasMorph.prototype.cacheUndo = function () {
 PaintCanvasMorph.prototype.undo = function () {
     if (this.undoBuffer.length > 0) {
         this.paper = newCanvas(this.extent(), true);
-        this.mask.width = this.mask.width + 1 - 1;
         this.merge(this.undoBuffer.pop(), this.paper);
         this.drawNew();
         this.changed();
@@ -680,7 +707,8 @@ PaintCanvasMorph.prototype.clearCanvas = function () {
 };
 
 PaintCanvasMorph.prototype.toolChanged = function (tool) {
-    this.mask = newCanvas(this.extent(), true);
+    var id = this.ensureHand();
+    this.hands[id].mask = newCanvas(this.extent(), true);
     if (tool === "crosshairs") {
         this.updateAutomaticCenter();
         this.drawcrosshair();
@@ -690,12 +718,16 @@ PaintCanvasMorph.prototype.toolChanged = function (tool) {
 };
 
 PaintCanvasMorph.prototype.drawcrosshair = function (context) {
-    var ctx = context || this.mask.getContext("2d"),
+   
+    var ctx = context,
         rp = this.rotationCenter;
+    if (!ctx) {
+      ctx = this.hands[this.ensureHand()].mask.getContext("2d");
+    }
 
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'black';
-    ctx.clearRect(0, 0, this.mask.width, this.mask.height);
+    ctx.clearRect(0, 0, this.paper.width, this.paper.height);
 
     // draw crosshairs:
     ctx.globalAlpha = 0.5;
@@ -729,13 +761,13 @@ PaintCanvasMorph.prototype.drawcrosshair = function (context) {
     // horizontal line:
     ctx.beginPath();
     ctx.moveTo(0, rp.y);
-    ctx.lineTo(this.mask.width, rp.y);
+    ctx.lineTo(this.paper.width, rp.y);
     ctx.stroke();
 
     // vertical line:
     ctx.beginPath();
     ctx.moveTo(rp.x, 0);
-    ctx.lineTo(rp.x, this.mask.height);
+    ctx.lineTo(rp.x, this.paper.height);
     ctx.stroke();
 
     this.drawNew();
@@ -807,65 +839,82 @@ PaintCanvasMorph.prototype.floodfill = function (sourcepoint) {
 };
 
 PaintCanvasMorph.prototype.mouseDownLeft = function (pos) {
-    var hand = this.world().activeHand();
-    var id = hand.id || 'primary';
-    this.ensureHand(id, hand);
+    var id = this.ensureHand();
+    var hand = this.hands[id];
     this.cacheUndo();
-    this.hands[id].dragRect = new Rectangle();
-    this.hands[id].dragRect.origin = pos.subtract(this.bounds.origin);
-    this.hands[id].dragRect.corner = pos.subtract(this.bounds.origin);
+    this.setMaskOrder(id);
+    hand.dragRect = new Rectangle();
+    hand.dragRect.origin = pos.subtract(this.bounds.origin);
+    hand.dragRect.corner = pos.subtract(this.bounds.origin);
     if (this.currentTool === 'crosshairs') {
         this.rotationCenter = pos.subtract(this.bounds.origin);
         this.drawcrosshair();
         return;
-    }
+    };
     if (this.currentTool === "paintbucket") {
         return this.floodfill(pos.subtract(this.bounds.origin));
-    }
-    if (this.settings.primarycolor === "transparent" &&
-            this.currentTool !== "crosshairs") {
-        this.erasermask = newCanvas(this.extent(), true);
-        this.merge(this.paper, this.erasermask);
-    }
+    };
+    if (this.currentTool === "brush" || this.currentTool === "eraser") {
+       var relpos = pos.subtract(this.bounds.origin);
+       hand.brushBuffer.push([relpos.x, relpos.y]);
+       return;
+    };
 };
 
 PaintCanvasMorph.prototype.mouseMove = function (pos) {
-    var hand = this.world().activeHand();
-    var id = hand.id || 'primary';
-    this.ensureHand(id, hand);
-    if (!this.hands[id].dragRect) {return;}
-
-    this.drawOnMask(pos, "move");
+    var id = this.ensureHand();
+    var hand = this.hands[id];
+    if (!hand.dragRect) {return;}
+    this.drawAction(pos);
 };
 
 PaintCanvasMorph.prototype.mouseClickLeft = function () {
-    var hand = this.world().activeHand();
-    var id = hand.id || 'primary';
-    this.ensureHand(id, hand);
-    if (this.currentTool !== "crosshairs") {
-      if (this.currentTool === "rectangle" || this.currentTool === "brush") {
-        this.drawOnMask(hand.position(), "up");
-      }
-//      this.merge(this.mask, this.paper);
-    }
-    this.hands[id].brushBuffer = [];
-    this.hands[id].dragRect = null;
+    var id = this.ensureHand();
+    hand = this.hands[id];
+    if (!hand.dragRect) {return;}
+
+    // There are cases.
+    // Case 1: draw into paper directly upon move.  In this case, "up" does not do anything
+    // Case 2: draw into mask upon move.  In this case, "up" merges current hands' mask into paper and clears it.
+    // Case 3: mouse down did something already so nothing to do.
+
+    var case1 = ["brush"];
+    var case2 = ["rectangle", "rectangleSolid", "line", "circle", "circleSolid"];
+    var case3 = ["crosshairs", "paintbucket"];
+
+    if (case1.indexOf(this.currentTool) >= 0) {
+        this.drawAction(this.world().activeHand().position());
+    };
+    if (case2.indexOf(this.currentTool) >= 0) {
+        this.drawAction(this.world().activeHand().position());
+        if (this.erasing) {
+            var ctx = this.paper.getContext('2d');
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.drawImage(hand.mask, 0, 0);
+            ctx.restore();
+            hand.clearMask();
+        } else {
+            this.merge(hand.mask, this.paper);
+            hand.clearMask();
+        }
+    };
+    if (case3.indexOf(this.currentTool) >= 0) {
+    };
+    hand.reset();
+    this.drawNew();
+    this.changed();
 };
 
-PaintCanvasMorph.prototype.drawOnMask = function (pos, moveOrUp) {
-    var key;
-    var hnd = this.world().activeHand();
-    var id = hnd.id || 'primary';
-    this.ensureHand(id, hnd);
-    if (this.currentTool === "paintbucket") {
-        return;
-    }
+PaintCanvasMorph.prototype.drawAction = function (pos) {
+    var id = this.ensureHand();
+    var hand = this.hands[id];
 
     var relpos = pos.subtract(this.bounds.origin),
-        mctx = this.mask.getContext("2d"),
+        mctx = hand.mask.getContext("2d"),
         pctx = this.paper.getContext("2d"),
-        x = this.hands[id].dragRect.origin.x, // original drag X
-        y = this.hands[id].dragRect.origin.y, // original drag y
+        x = hand.dragRect.origin.x, // original drag X
+        y = hand.dragRect.origin.y, // original drag y
         p = relpos.x,               // current drag x
         q = relpos.y,               // current drag y
         w = (p - x) / 2,            // half the rect width
@@ -873,6 +922,7 @@ PaintCanvasMorph.prototype.drawOnMask = function (pos, moveOrUp) {
         i,                          // iterator number
         width = this.paper.width;
 
+    pctx.save();
     mctx.save();
     function newW(w, h) {
         return Math.max(Math.abs(w), Math.abs(h)) * (w / Math.abs(w));
@@ -880,106 +930,85 @@ PaintCanvasMorph.prototype.drawOnMask = function (pos, moveOrUp) {
     function newH(w, h) {
         return Math.max(Math.abs(w), Math.abs(h)) * (h / Math.abs(h));
     }
-    this.hands[id].brushBuffer.push([p, q]);
     mctx.lineWidth = this.settings.linewidth;
-    mctx.clearRect(0, 0, this.bounds.width(), this.bounds.height()); // mask
+    mctx.clearRect(0, 0, this.bounds.width(), this.bounds.height());
+    hand.dragRect.corner = relpos;
 
-    this.hands[id].dragRect.corner = relpos; //.subtract(this.hands[id].dragRect.origin); // reset crn
-
-    if (this.settings.primarycolor === "transparent" &&
-            this.currentTool !== "crosshairs") {
-        this.merge(this.erasermask, this.mask);
-        pctx.clearRect(0, 0, this.bounds.width(), this.bounds.height());
-        mctx.globalCompositeOperation = "destination-out";
-    } else {
-        mctx.fillStyle = this.settings.primarycolor.toString();
-        mctx.strokeStyle = this.settings.primarycolor.toString();
+    var tool = this.currentTool;
+    if (this.settings.primarycolor === "transparent" && this.currentTool === "brush") {
+        tool = "eraser";
     }
-    switch (this.currentTool) {
+    if (this.settings.primarycolor === "transparent" && this.currentTool !== "crosshairs") {
+       this.erasing = true;
+       mctx.fillStyle = "#FF0000";
+       mctx.strokeStyle = "#FF0000";
+    } else {
+       this.erasing = false;
+       mctx.fillStyle = this.settings.primarycolor.toString();
+       mctx.strokeStyle = this.settings.primarycolor.toString();
+    }
+
+    switch (tool) {
     case "rectangle":
-       if (moveOrUp === "up") {
-         var hand = this.hands[id];
-         var r = hand.dragRect;
-         var w = r.width(), h = r.height();
-         if (hand.isShiftPressed()) {
-	   mctx.strokeRect(r.origin.x, r.origin.y, newW(w, h), newH(w, h));
-	 } else {
-	   mctx.strokeRect(r.origin.x, r.origin.y, r.width(), r.height());
-	 }
-         hand.dragRect = null;
-         this.merge(this.mask, this.paper);
-       }
-       for (key in this.hands) {
-         var hand = this.hands[key];
-         var r = hand.dragRect;
-         if (r) {
-           var w = r.width(), h = r.height();
-   	   if (hand.isShiftPressed()) {
-             mctx.strokeRect(r.origin.x, r.origin.y, newW(w, h), newH(w, h));
-	   } else {
-	     mctx.strokeRect(r.origin.x, r.origin.y, r.width(), r.height());
-           }
-         }
-       }
-       break;
-    case "rectangleSolid":
-        if (this.hands[id].isShiftPressed()) {
-            mctx.fillRect(x, y, newW() * 2, newH() * 2);
+        var r = hand.dragRect;
+        var ww = r.width(), hh = r.height();
+        if (hand.isShiftPressed()) {
+            mctx.strokeRect(x, y, newW(ww, hh), newH(ww, hh));
         } else {
-            mctx.fillRect(x, y, w * 2, h * 2);
+            mctx.strokeRect(x, y, ww, hh);
+        }
+        break;
+    case "rectangleSolid":
+        var r = hand.dragRect;
+        var ww = r.width(), hh = r.height();
+        if (hand.isShiftPressed()) {
+            mctx.fillRect(r.origin.x, r.origin.y, newW(ww, hh), newH(ww, hh));
+        } else {
+            mctx.fillRect(r.origin.x, r.origin.y, ww, hh);
         }
         break;
     case "brush":
-        mctx.lineCap = "round";
-        mctx.lineJoin = "round";
-       if (moveOrUp === "up") {
-         var hand = this.hands[id];
-         var r = hand.dragRect;
-         var buf = this.hands[id].brushBuffer;
-         if (buf.length > 0) {
-           mctx.beginPath();
-           mctx.moveTo(buf[0][0], buf[0][1]);
-           for (i = 0; i < buf.length; i += 1) {
-             mctx.lineTo(buf[i][0], buf[i][1]);
-           }
-           mctx.stroke();
-         }
-         hand.dragRect = null;
-         hand.brushBuffer = [];
-         this.merge(this.mask, this.paper);
-      }
-      for (key in this.hands) {
-        var buf = this.hands[key].brushBuffer;
-        if (buf.length > 0) {
-          mctx.beginPath();
-          mctx.moveTo(buf[0][0], buf[0][1]);
-          for (i = 0; i < buf.length; i += 1) {
-            mctx.lineTo(buf[i][0], buf[i][1]);
-          }
-          mctx.stroke();
+    case "eraser":
+        var buf = hand.brushBuffer;
+        buf.push([p, q]);
+        pctx.lineCap = "round";
+        pctx.lineJoin = "round";
+        pctx.lineWidth = this.settings.linewidth;
+        if (tool === "eraser") {
+            pctx.globalCompositeOperation = "destination-out";
+            pctx.fillStyle = "#FFFFFF";
+            pctx.strokeStyle = "#FFFFFF";
+        } else {
+            pctx.fillStyle = this.settings.primarycolor.toString();
+            pctx.strokeStyle = this.settings.primarycolor.toString();
         }
-      }
-      break;
+        var r = hand.dragRect;
+        if (buf.length > 1) {
+          pctx.beginPath();
+          pctx.moveTo(buf[0][0], buf[0][1]);
+          pctx.lineTo(buf[1][0], buf[1][1]);
+          pctx.stroke();
+          buf.shift();
+        }
+        break;
     case "line":
-        for (key in this.hands) {
-          mctx.beginPath();
-          mctx.moveTo(x, y);
-          if (this.hands[key].isShiftPressed()) {
+        mctx.beginPath();
+        mctx.moveTo(x, y);
+        if (hand.isShiftPressed()) {
             if (Math.abs(h) > Math.abs(w)) {
-                mctx.lineTo(x, q);
+               mctx.lineTo(x, q);
             } else {
-                mctx.lineTo(p, y);
+               mctx.lineTo(p, y);
             }
-          } else {
+        } else {
             mctx.lineTo(p, q);
-          }
-          mctx.stroke();
         }
+        mctx.stroke();
         break;
     case "circle":
     case "circleSolid":
         mctx.beginPath();
-        if (this.hands[id].isShiftPressed()) {
+        if (hand.isShiftPressed()) {
             mctx.arc(
                 x,
                 y,
@@ -1011,10 +1040,8 @@ PaintCanvasMorph.prototype.drawOnMask = function (pos, moveOrUp) {
         mctx.closePath();
         if (this.currentTool === "circleSolid") {
             mctx.fill();
-        } else {
-            if (this.currentTool === "circle") {
-                mctx.stroke();
-            }
+        } else if (this.currentTool === "circle") {
+            mctx.stroke();
         }
         break;
     case "crosshairs":
@@ -1023,26 +1050,13 @@ PaintCanvasMorph.prototype.drawOnMask = function (pos, moveOrUp) {
         this.rotationCenter = relpos.copy();
         this.drawcrosshair(mctx);
         break;
-    case "eraser":
-        this.merge(this.paper, this.mask);
-        mctx.save();
-        mctx.globalCompositeOperation = "destination-out";
-        mctx.beginPath();
-        mctx.moveTo(this.hands[id].brushBuffer[0][0], this.hands[id].brushBuffer[0][1]);
-        for (i = 0; i < this.hands[id].brushBuffer.length; i += 1) {
-            mctx.lineTo(this.hands[id].brushBuffer[i][0], this.hands[id].brushBuffer[i][1]);
-        }
-        mctx.stroke();
-        mctx.restore();
-        this.paper = newCanvas(this.extent(), true);
-        this.merge(this.mask, this.paper);
-        break;
     default:
         nop();
     }
     this.drawNew();
     this.changed();
     mctx.restore();
+    pctx.restore();
 };
 
 PaintCanvasMorph.prototype.mouseLeaveDragging
@@ -1051,8 +1065,9 @@ PaintCanvasMorph.prototype.mouseLeaveDragging
 PaintCanvasMorph.prototype.buildContents = function () {
     this.background = newCanvas(this.extent());
     this.paper = newCanvas(this.extent(), true);
-    this.mask = newCanvas(this.extent(), true);
-    this.erasermask = newCanvas(this.extent(), true);
+    for (var id in this.hands) {
+       this.hands[id].mask = newCanvas(this.extent(), true);
+    }
     var i, j, bkctx = this.background.getContext("2d");
     for (i = 0; i < this.background.width; i += 5) {
         for (j = 0; j < this.background.height; j += 5) {
@@ -1069,8 +1084,24 @@ PaintCanvasMorph.prototype.buildContents = function () {
 PaintCanvasMorph.prototype.drawNew = function () {
     var can = newCanvas(this.extent(), true);
     this.merge(this.background, can);
-    this.merge(this.paper, can);
-    this.merge(this.mask, can);
+    if (this.erasing) {
+      var tmp = newCanvas(this.extent(), true);
+      this.merge(this.paper, tmp);
+      var ctx = tmp.getContext('2d');
+      ctx.globalCompositeOperation = "destination-out";
+      for (var i = this.maskOrder.length - 1; i >= 0; i--) {
+        var hand = this.hands[this.maskOrder[i]]
+        ctx.drawImage(hand.mask, 0, 0);
+      //hand.clearMask();
+      }
+      this.merge(tmp, can);
+    } else {
+      this.merge(this.paper, can);
+      for (var i = this.maskOrder.length - 1; i >= 0; i--) {
+        var hand = this.hands[this.maskOrder[i]]
+        this.merge(hand.mask, can);
+      }
+    }
     this.image = can;
     this.drawFrame();
 };
