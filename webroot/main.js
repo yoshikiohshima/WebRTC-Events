@@ -57,7 +57,9 @@ function ensureMedia(id) {
       c.id = 'cursor-' + id;
       c.innerHTML = 'X';
       c.style.position = 'absolute';
+      c.style.pointerEvents = 'none';
       document.body.appendChild(c);
+     // videoCanvas.style.cursor = 'none';
     } else {
       c = {id: 'cursor-' + id};
     }
