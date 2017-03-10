@@ -9,7 +9,7 @@
     written by Jens Mönig
     jens@moenig.org
 
-    Copyright (C) 2016 by Jens Mönig
+    Copyright (C) 2017 by Jens Mönig
 
     This file is part of Snap!.
 
@@ -59,9 +59,9 @@ degrees, detect, nop, radians, ReporterSlotMorph, CSlotMorph, RingMorph,
 IDE_Morph, ArgLabelMorph, localize, XML_Element, hex_sha512, TableDialogMorph,
 StageMorph, SpriteMorph, StagePrompterMorph, Note, modules, isString, copy,
 isNil, WatcherMorph, List, ListWatcherMorph, alert, console, TableMorph,
-TableFrameMorph, isSnapObject*/
+TableFrameMorph, ColorSlotMorph, isSnapObject*/
 
-modules.threads = '2016-October-27';
+modules.threads = '2017-March-01';
 
 var ThreadManager;
 var Process;
@@ -361,6 +361,9 @@ ThreadManager.prototype.findProcess = function (block) {
 
 ThreadManager.prototype.doWhen = function (block, stopIt) {
     if (this.pauseCustomHatBlocks) {return; }
+    if ((!block) || this.findProcess(block)) {
+        return;
+    }
     var pred = block.inputs()[0], world;
     if (block.removeHighlight()) {
         world = block.world();
@@ -369,8 +372,6 @@ ThreadManager.prototype.doWhen = function (block, stopIt) {
         }
     }
     if (stopIt) {return; }
-    if ((!block) || this.findProcess(block)
-    ) {return; }
     try {
         if (invoke(
             pred,
@@ -380,7 +381,7 @@ ThreadManager.prototype.doWhen = function (block, stopIt) {
             'the predicate takes\ntoo long for a\ncustom hat block',
             true // suppress errors => handle them right here instead
         ) === true) {
-            this.startProcess(block);
+            this.startProcess(block, null, null, null, null, true); // atomic
         }
     } catch (error) {
         block.addErrorHighlight();
@@ -473,6 +474,7 @@ Process.prototype.isCatchingErrors = true;
 Process.prototype.enableLiveCoding = false; // experimental
 Process.prototype.enableSingleStepping = false; // experimental
 Process.prototype.flashTime = 0; // experimental
+// Process.prototype.enableJS = false;
 
 function Process(topBlock, onComplete, rightAway) {
     this.topBlock = topBlock || null;
@@ -939,7 +941,7 @@ Process.prototype.reify = function (topBlock, parameterNames, isCustomBlock) {
                 topBlock : topBlock.fullCopy();
         context.expression.show(); // be sure to make visible if in app mode
 
-        if (!isCustomBlock) {
+        if (!isCustomBlock && !parameterNames.length()) {
             // mark all empty slots with an identifier
             context.expression.allEmptySlots().forEach(function (slot) {
                 i += 1;
@@ -1000,6 +1002,11 @@ Process.prototype.evaluate = function (
 ) {
     if (!context) {return null; }
     if (context instanceof Function) {
+        /*
+        if (!this.enableJS) {
+            throw new Error('JavaScript is not enabled');
+        }
+        */
         return context.apply(
             this.blockReceiver(),
             args.asArray().concat([this])
@@ -2655,14 +2662,11 @@ Process.prototype.getOtherObject = function (name, thisObj, stageObj) {
                 return morph instanceof SpriteMorph
                     && morph.name === name;
             };
-	    var hand = stage.world().hand;
-            thatObj = detect(hand.children, detector);
-            if (!thatObj) {
-                for (var k in stage.world().hands) {
-                    hand = stage.world().hands[k];
-                    thatObj = detect(hand.children, detector);
-                    if (thatObj) break;
-                }
+	    var hand;
+            for (var k in stage.world().hands) {
+                hand = stage.world().hands[k];
+                thatObj = detect(hand.children, detector);
+                if (thatObj) break;
             }
         }
     }
@@ -2688,7 +2692,7 @@ Process.prototype.getObjectsNamed = function (name, thisObj, stageObj) {
         if (!those.length) {
             // check if a sprite in question is currently being
             // dragged around
-            those = stage.world().hand.children.filter(check);
+            //those = stage.world().hand.children.filter(check);
             for (var k in stage.world().hands) {
                 var hand = stage.world().hands[k];
                 those = those.concat(hand.children.filter(check));
@@ -2777,7 +2781,7 @@ Process.prototype.objectTouchingObject = function (thisObj, name) {
         mouse;
 
     if (this.inputOption(name) === 'mouse-pointer') {
-        mouse = thisObj.world().hand.position();
+        mouse = thisObj.world().activeHand().position();
         if (thisObj.bounds.containsPoint(mouse) &&
                 !thisObj.isTransparentAt(mouse)) {
             return true;
@@ -3217,8 +3221,27 @@ Process.prototype.doMapCode = function (aContext, aString) {
     }
 };
 
-Process.prototype.doMapStringCode = function (aString) {
-    StageMorph.prototype.codeMappings.string = aString || '<#1>';
+Process.prototype.doMapValueCode = function (type, aString) {
+    var tp = this.inputOption(type);
+    switch (tp) {
+    case 'String':
+        StageMorph.prototype.codeMappings.string = aString || '<#1>';
+        break;
+    case 'Number':
+        StageMorph.prototype.codeMappings.number = aString || '<#1>';
+        break;
+    case 'true':
+        StageMorph.prototype.codeMappings.boolTrue = aString || 'true';
+        break;
+    case 'false':
+        StageMorph.prototype.codeMappings.boolFalse = aString || 'true';
+        break;
+    default:
+        throw new Error(
+            localize('unsupported data type') + ' ' + tp
+        );
+    }
+
 };
 
 Process.prototype.doMapListCode = function (part, kind, aString) {
@@ -3367,7 +3390,8 @@ Process.prototype.flashContext = function () {
             expr instanceof SyntaxElementMorph &&
             !(expr instanceof CommandSlotMorph) &&
             !this.context.isFlashing &&
-            expr.world()) {
+            expr.world() &&
+            !(expr instanceof ColorSlotMorph)) {
         this.unflash();
         expr.flash();
         this.context.isFlashing = true;
@@ -3643,7 +3667,7 @@ function Variable(value, isTransient) {
 }
 
 Variable.prototype.toString = function () {
-    return 'a ' + this.isTransient ? 'transient ' : '' + 'Variable [' +
+    return 'a ' + (this.isTransient ? 'transient ' : '') + 'Variable [' +
         this.value + ']';
 };
 
