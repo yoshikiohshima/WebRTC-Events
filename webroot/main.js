@@ -81,6 +81,8 @@ var isLearner = !isTeacher;
 var learnerStartTime = Date.now();
 var recordingStartTime;
 
+var noAudio = /noAudio=/.test(window.location.toString());
+
 var offerOptions = {
   offerToReceiveAudio: 1,
   offerToReceiveVideo: 1
@@ -197,10 +199,14 @@ function init() {
   if (isLearner) {
     setupFileSystem();
     startCanvas();
-    startAudio();
+    if (!noAudio) {
+      startAudio();
+    }
     socket.emit('newLearner', room, appName);
   } else {
-    startAudio();
+    if (!noAudio) {
+      startAudio();
+    }
     socket.emit('newTeacher', room, appName);
   };
 
