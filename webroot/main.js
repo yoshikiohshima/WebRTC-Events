@@ -694,7 +694,8 @@ var eventTypes = {keydown: 0, keyup: 1, keypress: 2, mousedown: 3, mouseup: 4, m
 var dataTypes = {image: 0, event: 1, canvasSize: 2};
 
 function randomToken() {
-  return Math.floor((1 + Math.random()) * 1e16).toString(16).substring(1);
+  return Math.floor((1 + Math.random()) * 0x1000).toString(8).substring(1);
+//  return Math.floor((1 + Math.random()) * 1e16).toString(16).substring(1);
 }
 
 function logError(err) {
