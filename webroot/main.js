@@ -81,7 +81,7 @@ var isLearner = !isTeacher;
 var learnerStartTime = Date.now();
 var recordingStartTime;
 
-var noAudio = /noAudio=/.test(window.location.toString());
+var noAudio = /no[aA]udio=/.test(window.location.toString());
 
 var offerOptions = {
   offerToReceiveAudio: 1,
@@ -368,7 +368,7 @@ function createPeerConnection(isInitiator, config, id) {
       console.log('Remote stream added.', event);
       var tracks = event.stream.getTracks();
       if (tracks.length > 0 && tracks[0].kind == 'video') {
-        videoCanvas.src = window.URL.createObjectURL(event.stream);
+        videoCanvas.src = event.stream;
       } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
         remoteAudio[connID].stream = event.stream;
         var audio = document.createElement('audio');
