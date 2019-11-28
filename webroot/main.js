@@ -271,7 +271,8 @@ function multiSignalingMessageCallback(message, room, from, to) {
 
   } else if (message.type === 'candidate') {
     peerConn.addIceCandidate(new RTCIceCandidate({
-      candidate: message.candidate
+      candidate: message.candidate,
+      id: '0'
     }));
 
   } else if (message === 'bye') {
@@ -368,7 +369,7 @@ function createPeerConnection(isInitiator, config, id) {
       console.log('Remote stream added.', event);
       var tracks = event.stream.getTracks();
       if (tracks.length > 0 && tracks[0].kind == 'video') {
-        videoCanvas.src = event.stream;
+        videoCanvas.srcObject = event.stream;
       } else if (tracks.length > 0 && tracks[0].kind == 'audio') {
         remoteAudio[connID].stream = event.stream;
         var audio = document.createElement('audio');
