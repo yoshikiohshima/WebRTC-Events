@@ -12165,26 +12165,22 @@ function receiveRemoteEvent(idString, buf) {
     }
 };
  
-var remoteCursors;
- 
-window.sqStartUp = function() {
-    var ids = Object.keys(remoteCursors);
-    var names = {};
-    for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        (function(idString) {
-            names[idString] = idString;
-            var remoteCursor = remoteCursors[idString];
-            var hand = world.hands[idString];
-            if (!hand) {
-                hand = world.addHandFor(idString);
-                remoteCursor.sqRcvEvt = function(buf) {
-                   return receiveRemoteEvent(idString, buf);
-                }
-            }
-        })(id);
+window.sqStartUp = function(view) {
+    let ids = Object.keys(view.remoteCursors);
+    let names = {};
+    for (let i = 0; i < ids.length; i++) {
+        let id = ids[i];
+        names[id] = id;
+        let remoteCursor = view.remoteCursors[id];
+        let hand = world.hands[id];
+        if (!hand) {
+            hand = world.addHandFor(id);
+            remoteCursor.sqRcvEvt = (buf) => {
+                return receiveRemoteEvent(id, buf);
+            };
+        }
     }
-    for (var k in world.hands) {
+    for (let k in world.hands) {
         if (!names[k]) {
             world.removeHandAt(k)
         }
