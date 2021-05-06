@@ -12096,7 +12096,49 @@ WorldMorph.prototype.activeHand = function() {
 
 // RemoteEvents //////////////////////////////////////////////////////////
 
-function decodeRemoteEvent(buf) {
+window.eventIsObject = false;
+
+function decodeRemoteEventObj(obj) {
+    let type = obj.type;
+    let mod = obj.mod;
+    // metaKey, altKey, ctrlKey, shiftKey, key, keyCode, charCode
+    let metaKey = !!(mod & 1);
+    let altKey = !!(mod & 2);
+    let ctrlKey = !!(mod & 4);
+    let shiftKey = !!(mod & 8);
+
+    switch (type) {
+        case "mousedown":
+        case "mouseup":
+        case "mousemove":
+            return new MouseEvent(type, {clientX: obj.clientX, clientY: obj.clientY, buttons: obj.buttons, button: obj.button, metaKey: metaKey, altKey: altKey, ctrlKey: ctrlKey, shiftKey: shiftKey});
+        case "keydown":
+        case "keypress":
+        case "keyup":
+        // var keyboardEvent = document.createEvent("KeyboardEvent");
+        // var initMethod = typeof keyboardEvent.initKeyboardEvent !== 'undefined' ? "initKeyboardEvent" : "initKeyEvent";
+        // keyboardEvent[initMethod](
+        //              type, // event type : keydown, keyup, keypress
+        //              true, // bubbles
+        //              true, // cancelable
+        //              window, // viewArg: should be window
+        //              ctrlKey, // ctrlKeyArg
+        //              altKey, // altKeyArg
+        //              shiftKey, // shiftKeyArg
+        //              metaKey, // metaKeyArg
+        //              buf[3], // keyCodeArg : unsigned long the virtual key code, else 0
+        //              0 // charCodeArgs : unsigned long the Unicode character associated with the depressed key, else 0
+        // );
+        var evt = {type: type, keyCode: obj.keyCode, altKey: altKey, ctrlKey: ctrlKey, metaKey: metaKey, shiftKey: shiftKey};
+        evt.preventDefault = function() {};
+        return evt;
+   };
+};
+
+
+function decodeRemoteEvent(obj) {
+    if (window.eventIsObject) {return decodeRemoteEventObj(obj);}
+    let buf = obj;
     var type = ["keydown", "keyup", "keypress", "mousedown", "mouseup", "mousemove"][buf[0]];
     var mod = buf[4];
     // metaKey, altKey, ctrlKey, shiftKey, key, keyCode, charCode

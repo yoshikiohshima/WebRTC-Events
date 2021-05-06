@@ -19,6 +19,11 @@ div#cursor {
     height: 100%;
 }
 
+#videoHolder {
+    width: 100%;
+    height: 100%;
+}
+
 div#cursor {
     position: absolute;
 }
@@ -38,3 +43,10 @@ div#cursor {
 #startButton:hover {
     background-color: #0000FF10;
 }
+
+#note {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+}
+    
