@@ -90,15 +90,17 @@ class RTCView extends Croquet.View {
         this.subscribe(this.model.id, "remote-dom-event", this.onRemoteDomEvent);
         this.subscribe(this.model.id, "refresh-request", this.onRefreshRequested);
 
-        this.client.join(this.appID, Croquet.App.autoSession("q"), null).then(uid => {
-            this.uid = uid;
-            this.client.on("user-published", this.onUserPublished.bind(this));
-            this.client.on("user-unpublished", this.onUserUnpublished.bind(this));
-            if (this.model.isSomeoneSharing) {
-                this.onSharingScreen();
-            } else {
-                this.refreshUIState();
-            }
+        Croquet.App.autoSession("q").then((sessionId) => {
+            this.client.join(this.appID, sessionId, null).then(uid => {
+                this.uid = uid;
+                this.client.on("user-published", this.onUserPublished.bind(this));
+                this.client.on("user-unpublished", this.onUserUnpublished.bind(this));
+                if (this.model.isSomeoneSharing) {
+                    this.onSharingScreen();
+                } else {
+                    this.refreshUIState();
+                }
+            });
         });
 
         this.remoteCursors = {};
