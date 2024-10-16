@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="learner.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Snap! Build Your Own Blocks</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <script src="https://unpkg.com/@croquet/croquet@0.5.0"></script>
+    <script type="text/javascript" src="https://cdn.agora.io/sdk/release/AgoraRTC_N-4.13.0.js"></script>
+    
+    <script type="text/javascript" src="../morphic.js"></script>
+    <script type="text/javascript" src="../widgets.js"></script>
+    <script type="text/javascript" src="../blocks.js"></script>
+    <script type="text/javascript" src="../threads.js"></script>
+    <script type="text/javascript" src="../objects.js"></script>
+    <script type="text/javascript" src="../gui.js"></script>
+    <script type="text/javascript" src="../paint.js"></script>
+    <script type="text/javascript" src="lists.js"></script>
+    <script type="text/javascript" src="../byob.js"></script>
+    <script type="text/javascript" src="../tables.js"></script>
+    <script type="text/javascript" src="xml.js"></script>
+    <script type="text/javascript" src="store.js"></script>
+    <script type="text/javascript" src="locale.js"></script>
+    <script type="text/javascript" src="cloud.js"></script>
+    <script type="text/javascript" src="sha512.js"></script>
+    <script type="text/javascript" src="FileSaver.min.js"></script>
+    <script type="text/javascript">
+      let sqSendEvent;
+
+      window.runSnap = () => {
+	  let canvas = document.createElement("canvas");
+	  canvas.tabIndex = 1;
+	  canvas.id = "world";
+	  document.body.appendChild(canvas);
+	  window.world = new WorldMorph(document.getElementById("world"));
+
+	  let loop = () => {
+	      requestAnimationFrame(loop);
+	      window.world.doOneCycle();
+	  };
+	  
+	  world.worldCanvas.focus();
+	  new IDE_Morph().openIn(world);
+	  loop();
+      };
+    </script>
+  </head>
+  <body style="margin: 0;">
+    <script src="../cursor.js"></script>
+    <script src="../main2.js"></script>
+  </body>
+</html>
